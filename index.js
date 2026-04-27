@@ -832,21 +832,83 @@ async function startBot() {
     }
   }
 });
+  sock.ev.on('creds.update', saveCreds);
+
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    if (type!== 'notify') return;
+
+    for (const msg of messages) {
+      try {
+        if (!msg?.message || msg.key.fromMe) continue;
+
+        const body = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+        const text = body?.trim() || '';
+
+        await autoViewStatus(sock, msg);
+
+        // ===== HARPS TECH AUTO-REPLY SYSTEM =====
+        const from = msg.key.remoteJid;
+        const isGroup = from.endsWith('@g.us');
+        const isPrivate =!isGroup;
+        const pushName = msg.pushName || 'there';
+
+        // 1. Handle voice notes / images / stickers — FREE
+        if (msg.message.audioMessage || msg.message.imageMessage || msg.message.stickerMessage || msg.message.videoMessage) {
+          if (isPrivate) {
+            await sock.sendMessage(from, {
+              text: panel('HARPS TECH Bot', `Hello *${pushName}* 👋\n\nI received your voice note/image.\n\nI can only read TEXT right now.\n\nSend *.menu* to see services\nSend *.ai your question* to chat with AI\n\n_${BRAND_TAGLINE}_`)
+            }, { quoted: msg });
+          }
+          continue;
+        }
+
+        // 2. If no text, stop here
         if (!text) continue;
+
+        // 3. Handle PAID commands first
+        if (text.startsWith(PREFIX)) {
+          await handleCommand(sock, msg, text);
+          continue;
+        }
+
+        // 4. Auto-reply in PRIVATE chats only — FREE
+        if (isPrivate) {
+          const lowerText = text.toLowerCase().trim();
+
+          // Pidgin detector
+          const pidginWords = ['watin', 'dey', 'how far', 'abeg', 'omo', 'na you dey', 'ehn', 'wahala', 'shey'];
+          if (pidginWords.some(w => lowerText.includes(w))) {
+            await sock.sendMessage(from, {
+              text: panel('HARPS TECH Bot', `Omo *${pushName}* 👋 You don show!\n\nI be *HARPS TECH Bot* — I dey run business 24/7\n\n*Sharp sharp:*\n• Send *.menu* — See all wey I fit do\n• Send *.ai* + your question — AI go answer ₦50\n• Send *.pay* — Fund wallet to buy\n\nNo dull yourself 👇 Type *.menu*\n\n_${BRAND_TAGLINE}_`)
+            }, { quoted: msg });
+            continue;
+          }
+
+          // Greeting detector
+          const greetings = ['hey', 'hi', 'hello', 'sup', 'yo', 'good morning', 'good afternoon', 'good evening', 'gm', 'gn'];
+          if (greetings.some(g => lowerText.startsWith(g))) {
+            await sock.sendMessage(from, {
+              text: panel('Welcome to Harps Tech', `Hello *${pushName}* 👋\n\nI'm *HARPS TECH Bot* — your 24/7 business assistant.\n\n*Quick Start:*\n• Send *.menu* — see all services\n• Send *.ai how to make money* — chat with AI ₦50\n• Send *.balance* — check wallet\n\n_${BRAND_TAGLINE}_`)
+            }, { quoted: msg });
+            continue;
+          }
+
+          // Default reply for any other random text
+          await sock.sendMessage(from, {
+            text: panel('HARPS TECH Bot', `Hi *${pushName}* 👋\n\nDid you need help?\n\n*Popular commands:*\n• *.menu* — Full service list\n• *.services* — Business catalog \n• *.ai* + question — AI chat ₦50\n• *.pay* — Fund your wallet\n\nType *.menu* to start 👇\n\n_${BRAND_TAGLINE}_`)
+          }, { quoted: msg });
+          continue;
+        }
 
         const senderJid = msg.key.participant || msg.key.remoteJid;
         const senderNumber = senderJid.split('@')[0].split(':')[0];
         getUser(`${senderJid.split('@')[0]}@s.whatsapp.net`, msg.pushName || senderNumber);
 
-        if (text.startsWith(PREFIX)) {
-          await handleCommand(sock, msg, text);
-        }
       } catch (err) {
         log.error('Message handler error:', err?.message || err);
       }
     }
-  });
-
+  });  
   return sock;
 }
 
