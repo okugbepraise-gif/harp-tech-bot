@@ -795,26 +795,22 @@ async function startBot() {
     generateHighQualityLinkPreview: true,
   });
 
-  if (!sock.authState.creds.registered) {
-    await new Promise((r) => setTimeout(r, 3000));
-    try {
-      const code = await sock.requestPairingCode(PHONE_NUMBER);
-      const formatted = code?.match(/.{1,4}/g)?.join('-') || code;
-      console.log('\n========================================');
-      console.log('   WHATSAPP PAIRING CODE');
-      console.log('========================================');
-      console.log(`   Phone: +${PHONE_NUMBER}`);
-      console.log(`   CODE:  ${formatted}`);
-      console.log('========================================');
-      console.log('  Open WhatsApp on your phone:');
-      console.log('  Settings > Linked Devices >');
-      console.log('  Link a device > Link with phone number');
-      console.log('  Then enter the code above.');
-      console.log('========================================\n');
-    } catch (err) {
-      log.error('Failed to request pairing code:', err?.message || err);
-    }
-  }
+  sock.ev.on('creds.update', saveCreds);
+819  
+820  sock.ev.on('connection.update', (update) => {
+821    const { connection, lastDisconnect } = update;
+822    if (connection === 'connecting') log.info('Connecting to WhatsApp...');
+823    else if (connection === 'open') log.success(`${BOT_NAME} connected as ${sock.user?.id || 'unknown'}`);
+824    else if (connection === 'close') {
+825      const statusCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.output?.payload?.statusCode;
+826      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+827      log.warn(`Connection closed (${statusCode}). Reconnecting: ${shouldReconnect}`);
+828      if (shouldReconnect) {
+829        setTimeout(() => {
+830          startBot().catch((e) => log.error('Restart failed:', e?.message || e));
+831        }, 3000);
+832      } else {
+833        log.error('Logged out. Delete the auth folder and restart to re-pair.');
 
   sock.ev.on('creds.update', saveCreds);
 
