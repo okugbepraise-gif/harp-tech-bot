@@ -1,6 +1,6 @@
 const express = require('express');
 const app = express();
-app.get('/', (req, res) => res.send('Harp Tech Bot Online'));
+app.get('/', (req, res) => res.send('Harp Tech Bot Alive'));
 app.listen(process.env.PORT || 3000, () => console.log('Web server running'));
 const {
   default: makeWASocket,
@@ -42,7 +42,7 @@ const BOT_NAME = 'HARPS TECH';
 const BRAND_TAGLINE = 'Premium Digital Services Concierge';
 const PREFIX = '.';
 const AUTH_FOLDER = path.join(__dirname, 'auth');
-if (fs.existsSync(AUTH_FOLDER)) fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
+// if (fs.existsSync(AUTH_FOLDER)) fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
 const DB_FILE = path.join(__dirname, 'database.json');
 const SUPPORT_HANDLE = `wa.me/${OWNER_NUMBER}`;
 const PAY_INFO = 'Opay  •  8141612736  •  Okugbe Praise';
