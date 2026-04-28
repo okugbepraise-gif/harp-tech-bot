@@ -1,0 +1,33 @@
+{
+  "tiers": {
+    "1": {
+      "name": "Starter",
+      "price": 5000,
+      "pages": 1,
+      "features": "Landing page + WhatsApp button + HarpTech badge",
+      "template": "starter.html"
+    },
+    "2": {
+      "name": "Business",
+      "price": 8000,
+      "pages": 5,
+      "features": "5 pages + Contact form + Custom logo",
+      "template": "business.html"
+    },
+    "3": {
+      "name": "Pro",
+      "price": 20000,
+      "pages": 10,
+      "features": "E-commerce ready + Paystack link",
+      "template": "pro.html"
+    },
+    "4": {
+      "name": "Enterprise",
+      "price": 50000,
+      "pages": "Unlimited",
+      "features": "Full dashboard + API + Bot integration",
+      "template": "enterprise.html"
+    }
+  },
+  "github_username": "harpstech-ng"
+}
