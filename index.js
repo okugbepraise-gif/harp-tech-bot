@@ -276,7 +276,6 @@ async function handleCommand(sock, msg, body) {
   const user = getUser(`${senderNumber}@s.whatsapp.net`, pushName);
   const isGroup = from.endsWith('@g.us');
 
-  // Check group settings
   if (isGroup) {
     const groupSet = getGroupSettings(from);
     if (!groupSet.enabled && senderNumber!== OWNER_NUMBER) return;
@@ -292,7 +291,6 @@ async function handleCommand(sock, msg, body) {
     } catch (e) { /* ignore */ }
   };
 
-  // Post to channel function
   const postToChannel = async (text) => {
     if (!CHANNEL_LINK) return;
     try {
@@ -337,7 +335,7 @@ async function handleCommand(sock, msg, body) {
       return cmdSmmStatus(reply, args);
 
     case 'web':
-      return cmdWebDisabled(reply); // DISABLED FOR V1
+      return cmdWebDisabled(reply);
 
     case 'buy':
       return cmdBuy(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args);
@@ -348,18 +346,15 @@ async function handleCommand(sock, msg, body) {
     case 'ai':
       return cmdAi(reply, user, senderNumber, pushName, args);
 
-    // BOT SELLING
     case 'buybot':
       return cmdBuyBot(reply, notifyOwner, user, senderNumber, pushName, args);
 
     case 'demo':
       return cmdDemo(reply, notifyOwner, user, senderNumber, pushName);
 
-    // NUMBER SHOP
     case 'buynumber':
       return cmdBuyNumber(reply, notifyOwner, postToChannel, user, senderNumber, pushName);
 
-    // CRUISE
     case 'chill':
       return cmdChill(reply, user, senderNumber, pushName);
 
@@ -387,7 +382,6 @@ async function handleCommand(sock, msg, body) {
     case 'rps':
       return cmdRPS(reply, args);
 
-    // GROUP CONTROL
     case 'on':
       return cmdGroupOn(reply, from, senderNumber);
 
@@ -397,22 +391,18 @@ async function handleCommand(sock, msg, body) {
     case 'group':
       return cmdGroupToggle(reply, from, senderNumber, args);
 
-    // GROWTH TRIALS
     case 'growth':
       return cmdGrowth(reply);
 
-    // DAILY BONUS
     case 'daily':
       return cmdDaily(reply, user, senderNumber);
 
-    // VOICE CLONE
     case 'voice':
       return cmdVoiceClone(reply, sock, msg, from, user, senderNumber, args);
 
     case 'setvoice':
       return cmdSetVoice(reply, sock, msg, senderNumber);
 
-    // ── Admin only ─────────────────────────────────────────────
     case 'fund':
       return cmdFund(reply, sock, senderNumber, args);
     case 'broadcast':
@@ -535,7 +525,6 @@ function cmdPay(reply) {
   return reply(panel('Fund Your Account', body));
 }
 
-// ──.services [category] ────────────────────────────────────────────────────
 function cmdServices(reply, args) {
   const cat = (args[0] || '').toLowerCase();
 
@@ -558,8 +547,8 @@ function cmdServices(reply, args) {
     for (const platform of Object.keys(grouped)) {
       body += `\n*${platform.toUpperCase()}*\n`;
       body += grouped[platform]
-  .map((s) => ` ${s.code.padEnd(5)} ${s.name}\n ${fmtNGN(s.pricePerK)}/1k • min ${s.min.toLocaleString()} • max ${s.max.toLocaleString()}`)
-  .join('\n');
+.map((s) => ` ${s.code.padEnd(5)} ${s.name}\n ${fmtNGN(s.pricePerK)}/1k • min ${s.min.toLocaleString()} • max ${s.max.toLocaleString()}`)
+.join('\n');
       body += '\n';
     }
     body += `\n*How to order:*\n${PREFIX}smm [code] [link] [quantity]\n*Example:* ${PREFIX}smm IGF https://instagram.com/yourhandle 1000`;
@@ -581,8 +570,8 @@ function cmdServices(reply, args) {
   if (cat === 'data') {
     const body =
       Object.entries(DATA_PLANS)
-  .map(([code, p]) => ` ${code.padEnd(8)} ${p.network.padEnd(8)} ${p.name.padEnd(20)} ${fmtNGN(p.price)}`)
-  .join('\n') +
+.map(([code, p]) => ` ${code.padEnd(8)} ${p.network.padEnd(8)} ${p.name.padEnd(20)} ${fmtNGN(p.price)}`)
+.join('\n') +
       `\n\n*How to order:*\n${PREFIX}buy data [plan] [number]\n*Example:* ${PREFIX}buy data MTN-2GB 08163738389`;
     return reply(panel('Data Plans', body));
   }
@@ -590,8 +579,8 @@ function cmdServices(reply, args) {
   if (cat === 'biz') {
     const body =
       Object.entries(BIZ_SERVICES)
-  .map(([code, s]) => ` ${code.padEnd(12)} ${s.name.padEnd(28)} ${fmtNGN(s.price)}`)
-  .join('\n') +
+.map(([code, s]) => ` ${code.padEnd(12)} ${s.name.padEnd(28)} ${fmtNGN(s.price)}`)
+.join('\n') +
       `\n\n*How to order:*\n${PREFIX}biz [code]\n*Example:* ${PREFIX}biz LOGO\n\nA Harps Tech specialist will reach out to scope your project.`;
     return reply(panel('Business Services', body));
   }
@@ -599,8 +588,8 @@ function cmdServices(reply, args) {
   if (cat === 'bots') {
     const body =
       Object.entries(BOT_PACKAGES)
-  .map(([key, b]) => `*${b.name}* - ${fmtNGN(b.price)}\n${b.desc}\nFeatures: ${b.features}\nCommand: ${PREFIX}buybot ${key}`)
-  .join('\n\n') +
+.map(([key, b]) => `*${b.name}* - ${fmtNGN(b.price)}\n${b.desc}\nFeatures: ${b.features}\nCommand: ${PREFIX}buybot ${key}`)
+.join('\n\n') +
       `\n\n*Free Demo:* ${PREFIX}demo - 24hr trial`;
     return reply(panel('Bot Packages', body));
   }
@@ -608,12 +597,10 @@ function cmdServices(reply, args) {
   return reply(panel('Service Catalog', `Unknown category: *${cat}*\nUse ${PREFIX}services to see categories.`));
 }
 
-// WEBSITE BUILDER DISABLED FOR V1
 function cmdWebDisabled(reply) {
   return reply(panel('Web Hosting', `🚧 *Website Builder Coming in V2*\n\nTemporarily disabled to fix bugs.\n\nFor custom websites ₦30k+ contact:\n${SUPPORT_HANDLE}\n\n_Use other services:.menu_`));
 }
 
-// ──.smm [code] [link] [qty] ────────────────────────────────────────────────
 async function cmdSmm(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args) {
   if (args.length < 3) {
     return reply(panel('SMM Order',
@@ -666,7 +653,6 @@ async function cmdSmm(reply, notifyOwner, postToChannel, user, senderNumber, pus
     `New SMM order\nUser: ${pushName} (${senderNumber})\nService: ${service.name}\nQty: ${quantity}\nLink: ${link}\nCharged: ${fmtNGN(cost)}\nPanel ID: ${panelOrderId}`
   );
 
-  // Post to channel
   await postToChannel(`🔥 *NEW ORDER* 🔥\n\n${pushName} just ordered ${quantity} ${service.name}!\n\nJoin HARPS TECH: ${CHANNEL_LINK}`);
 
   return reply(panel('SMM Order Confirmed',
@@ -688,7 +674,6 @@ async function cmdSmmStatus(reply, args) {
   return reply(panel('SMM Status', body));
 }
 
-// ──.buy airtime / data ─────────────────────────────────────────────────────
 async function cmdBuy(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args) {
   const sub = (args.shift() || '').toLowerCase();
 
@@ -724,7 +709,7 @@ async function cmdBuy(reply, notifyOwner, postToChannel, user, senderNumber, pus
 
   if (sub === 'data') {
     if (args.length < 2) {
-      return reply(panel('Data', `Usage: ${PREFIX}buy data [number]\nExample: ${PREFIX}buy data MTN-2GB 08163738389\nSee plans: ${PREFIX}services data`));
+      return reply(panel('Data', `Usage: ${PREFIX}buy data [plan] [number]\nExample: ${PREFIX}buy data MTN-2GB 08163738389\nSee plans: ${PREFIX}services data`));
     }
     const planCode = (args[0] || '').toUpperCase();
     const number = (args[1] || '').replace(/[^0-9]/g, '');
@@ -755,7 +740,6 @@ async function cmdBuy(reply, notifyOwner, postToChannel, user, senderNumber, pus
     `Usage:\n${PREFIX}buy airtime [amount] [number]\n${PREFIX}buy data [plan] [number]\n\nSee ${PREFIX}services airtime / ${PREFIX}services data`));
 }
 
-// ──.biz [code] ─────────────────────────────────────────────────────────────
 async function cmdBiz(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args) {
   const code = (args[0] || '').toUpperCase();
   const svc = BIZ_SERVICES[code];
@@ -863,7 +847,6 @@ async function cmdBuyNumber(reply, notifyOwner, postToChannel, user, senderNumbe
       `Phone: *${numData.phone}*\nCountry: USA\nService: WhatsApp\nCharged: *₦4,000*\nBalance: *${fmtNGN(newBal)}*\n\n` +
       `Order: *${orderId}*\n\nNow go to WhatsApp → Enter this number → Request SMS code\n\nI'll auto-send you the code when it arrives!`));
 
-    // Auto-check SMS every 10 seconds for 5 minutes
     let attempts = 0;
     const maxAttempts = 30;
     const checkSMS = async () => {
@@ -1188,36 +1171,36 @@ async function startBot() {
 
     // === PAIRING CODE WITH AUTO-REFRESH 30 SEC WINDOW ===
     if (connection === 'connecting' &&!sock.authState.creds.registered) {
-      console.log('!!! HARPS TECH PAIRING MODE ACTIVE !!!');
-      
+      console.log('!!! HARPS TECH PAIRING MODE ACTIVE!!!');
+
       const generateCode = async () => {
         try {
           await new Promise(r => setTimeout(r, 2000));
           const code = await sock.requestPairingCode(PHONE_NUMBER);
           const time = new Date().toLocaleTimeString();
-          
+
           console.log('\n');
           console.log('═══════════════════════════════════════════');
-          console.log(`  🔥 FRESH CODE - ${time} 🔥`);
+          console.log(` 🔥 FRESH CODE - ${time} 🔥`);
           console.log('═══════════════════════════════════════════');
-          console.log(`           CODE: ${code}          `);
-          console.log('   Valid for ~30 seconds from NOW');
+          console.log(` CODE: ${code} `);
+          console.log(' Valid for ~30 seconds from NOW');
           console.log('═══════════════════════════════════════════');
-          console.log('  📱 WhatsApp → Linked Devices → Link with');
-          console.log('     Phone Number → Enter code FAST');
+          console.log(' 📱 WhatsApp → Linked Devices → Link with');
+          console.log(' Phone Number → Enter code FAST');
           console.log('═══════════════════════════════════════════');
-          console.log('  New code in 25 seconds if you miss this');
+          console.log(' New code in 25 seconds if you miss this');
           console.log('═══════════════════════════════════════════');
           console.log('\n');
-          
+
         } catch (err) {
           console.log('Code error:', err.message);
         }
       };
-      
+
       await generateCode();
       const codeInterval = setInterval(generateCode, 25000);
-      
+
       sock.ev.on('connection.update', (u) => {
         if (u.connection === 'open') {
           clearInterval(codeInterval);
@@ -1230,20 +1213,17 @@ async function startBot() {
       log.success(`${BOT_NAME} connected as ${sock.user?.id || 'unknown'}`);
     } else if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.output?.payload?.statusCode;
-      
+
       if (statusCode === DisconnectReason.loggedOut) {
         console.log('[ERROR] 401 Detected. Auto-deleting auth...');
         fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
         console.log(' Auth cleaned. Restarting for fresh pairing...');
       }
-      
+
       log.warn(`Connection closed (${statusCode}). Reconnecting...`);
       setTimeout(() => {
         startBot().catch((e) => log.error('Restart failed:', e?.message || e));
       }, 3000);
-    } else {
-        log.error('Logged out. Delete the auth folder and restart to re-pair.');
-      }
     }
   });
 
@@ -1259,7 +1239,6 @@ async function startBot() {
         const body = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
         const text = body?.trim() || '';
 
-        // ===== HARPS TECH AUTO-REPLY SYSTEM =====
         const from = msg.key.remoteJid;
         const isGroup = from.endsWith('@g.us');
         const isPrivate =!isGroup;
@@ -1267,7 +1246,6 @@ async function startBot() {
         const senderJid = msg.key.participant || msg.key.remoteJid;
         const senderNumber = senderJid.split('@')[0].split(':')[0];
 
-        // 1. Handle voice notes / images / stickers — FREE
         if (msg.message.audioMessage || msg.message.imageMessage || msg.message.stickerMessage || msg.message.videoMessage) {
           if (isPrivate) {
             await sock.sendMessage(from, {
@@ -1277,10 +1255,8 @@ async function startBot() {
           continue;
         }
 
-        // 2. If no text, stop here
         if (!text) continue;
 
-        // AUTO-SAVAGE - Check if message contains curse
         if (text && isCursed(text) &&!text.startsWith(PREFIX)) {
           const groupSet = isGroup? getGroupSettings(from) : { enabled: true };
           if (groupSet.enabled) {
@@ -1289,19 +1265,16 @@ async function startBot() {
           }
         }
 
-        // 3. Handle PAID commands first
         if (text.startsWith(PREFIX)) {
           await handleCommand(sock, msg, text);
           continue;
         }
 
-        // 4. Auto-reply in PRIVATE chats only — CHECK CHILL MODE
         if (isPrivate) {
           const db = loadDB();
           const isChillMode = db.users[senderNumber]?.chillMode || false;
 
           if (isChillMode) {
-            // CHILL MODE = Normal person replies
             const lowerText = text.toLowerCase().trim();
             let reply = '';
 
@@ -1327,10 +1300,8 @@ async function startBot() {
             continue;
           }
 
-          // NORMAL BUSINESS MODE BELOW
           const lowerText = text.toLowerCase().trim();
 
-          // Pidgin detector
           const pidginWords = ['watin', 'dey', 'how far', 'abeg', 'omo', 'na you dey', 'ehn', 'wahala', 'shey', 'na', 'oya'];
           if (pidginWords.some(w => lowerText.includes(w))) {
             await sock.sendMessage(from, {
@@ -1339,7 +1310,6 @@ async function startBot() {
             continue;
           }
 
-          // Greeting detector
           const greetings = ['hey', 'hi', 'hello', 'sup', 'yo', 'good morning', 'good afternoon', 'good evening', 'gm', 'gn'];
           if (greetings.some(g => lowerText.startsWith(g))) {
             await sock.sendMessage(from, {
@@ -1348,19 +1318,16 @@ async function startBot() {
             continue;
           }
 
-          // Default reply for any other random text
           await sock.sendMessage(from, {
             text: panel('HARPS TECH Bot', `Hi *${pushName}* 👋\n\nDid you need help?\n\n*Popular commands:*\n• *.menu* — Full service list\n• *.services* — Business catalog \n• *.ai* + question — AI chat ₦50\n• *.pay* — Fund your wallet\n• *.chill* — Gist with me\n\nType *.menu* to start 👇\n\n_${BRAND_TAGLINE}_`)
           }, { quoted: msg });
           continue;
         }
 
-        // 5. GROUP CHAT - Check if bot enabled
         if (isGroup) {
           const groupSet = getGroupSettings(from);
-          if (!groupSet.enabled) continue; // Bot OFF, ignore
+          if (!groupSet.enabled) continue;
 
-          // Cruise mode - auto reply to mentions
           if (groupSet.cruise && (text.toLowerCase().includes('harps') || text.toLowerCase().includes('bot'))) {
             const responses = [
               `Na who mention HARPS TECH? 😏 Money dey?`,
