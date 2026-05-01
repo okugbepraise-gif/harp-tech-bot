@@ -1175,39 +1175,42 @@ async function startBot() {
 
       const generateCode = async () => {
         try {
-          await new Promise(r => setTimeout(r, 2000));
+          // iPhone 8 fix: 5 sec delay before requesting code
+          await new Promise(r => setTimeout(r, 5000));
+          
           const code = await sock.requestPairingCode(PHONE_NUMBER);
           const time = new Date().toLocaleTimeString();
 
           console.log('\n');
           console.log('═══════════════════════════════════════════');
-          console.log(` 🔥 FRESH CODE - ${time} 🔥`);
+          console.log(` 🔥 iPHONE 8 CODE - ${time} 🔥`);
           console.log('═══════════════════════════════════════════');
-          console.log(` CODE: ${code} `);
-          console.log(' Valid for ~30 seconds from NOW');
+          console.log(`           ${code}           `);
+          console.log('    20 SECOND WINDOW - ENTER NOW');
           console.log('═══════════════════════════════════════════');
-          console.log(' 📱 WhatsApp → Linked Devices → Link with');
-          console.log(' Phone Number → Enter code FAST');
-          console.log('═══════════════════════════════════════════');
-          console.log(' New code in 25 seconds if you miss this');
+          console.log(' 📱 WhatsApp → Settings → Linked Devices');
+          console.log('    Link with Phone Number → +234 814 161 2736');
           console.log('═══════════════════════════════════════════');
           console.log('\n');
 
         } catch (err) {
           console.log('Code error:', err.message);
+          if (err.message.includes('401')) {
+            console.log('[FIX] Auth error. Restarting...');
+            setTimeout(() => process.exit(1), 3000);
+          }
         }
       };
 
       await generateCode();
-      const codeInterval = setInterval(generateCode, 25000);
+      const codeInterval = setInterval(generateCode, 20000); // New code every 20 sec
 
       sock.ev.on('connection.update', (u) => {
         if (u.connection === 'open') {
           clearInterval(codeInterval);
-          console.log('\n🎉🎉🎉 BOT LINKED SUCCESSFULLY 🎉🎉🎉\n');
+          console.log('\n🎉🎉 iPHONE 8 LINKED SUCCESSFULLY 🎉🎉🎉\n');
         }
       });
-    }
 
     if (connection === 'open') {
       log.success(`${BOT_NAME} connected as ${sock.user?.id || 'unknown'}`);
