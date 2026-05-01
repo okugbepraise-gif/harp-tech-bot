@@ -24,8 +24,9 @@ const {
   findSmmService,
   calcSmmCost,
 } = require('./services');
-const { generateSiteHTML } = require('./templates');
-const { isValidRepoName, deployStaticSite } = require('./github');
+// WEBSITE BUILDER DISABLED FOR V1 - Harps Tech
+// const { generateSiteHTML } = require('./templates');
+// const { isValidRepoName, deployStaticSite } = require('./github');
 const {
   placeOrder: placeSmmOrder,
   getOrderStatus: getSmmStatus,
@@ -49,15 +50,9 @@ const PAY_INFO = 'Opay • 8141612736 • Okugbe Praise';
 const CHANNEL_LINK = process.env.CHANNEL_LINK || '';
 const GROUP_LINK = process.env.GROUP_LINK || '';
 
-// Load web tiers from web_config.json
+// WEBSITE BUILDER DISABLED - Skip loading web_config.json
 function loadWebTiers() {
-  try {
-    const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'web_config.json'), 'utf-8'));
-    return config;
-  } catch (err) {
-    log.error('web_config.json missing:', err.message);
-    return { tiers: {}, github_username: "harpstech-ng" };
-  }
+  return { tiers: {}, github_username: "harpstech-ng" };
 }
 
 // ============================================================================
@@ -213,7 +208,7 @@ const INSUFFICIENT_MSG =
 // BOT PACKAGES
 const BOT_PACKAGES = {
   basic: { name: 'Basic Bot', price: 15000, features: 20, desc: 'Menu, Balance, AI, Airtime, Data' },
-  standard: { name: 'Standard Bot', price: 25000, features: 50, desc: 'All Basic + SMM, Web, Biz Services' },
+  standard: { name: 'Standard Bot', price: 25000, features: 50, desc: 'All Basic + SMM, Biz Services' },
   pro: { name: 'Pro Bot', price: 40000, features: 80, desc: 'All Standard + Games, Referral, Channel Post' },
   premium: { name: 'Premium Bot', price: 60000, features: 101, desc: 'All Pro + Voice Clone, Auto Status, Bulk SMS' }
 };
@@ -342,7 +337,7 @@ async function handleCommand(sock, msg, body) {
       return cmdSmmStatus(reply, args);
 
     case 'web':
-      return cmdWeb(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args);
+      return cmdWebDisabled(reply); // DISABLED FOR V1
 
     case 'buy':
       return cmdBuy(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args);
@@ -446,7 +441,6 @@ function cmdMenu(reply, user, senderNumber) {
     `Balance: *${fmtNGN(user.balance)}*\n` +
     `\n*MAIN MENU*\n` +
     `• ${PREFIX}services — view our service catalog\n` +
-    `• ${PREFIX}web [tier] [sitename] — instant GitHub web hosting\n` +
     `• ${PREFIX}smm [code] [link] [qty] — order social boost\n` +
     `• ${PREFIX}buy airtime [amt] [number]\n` +
     `• ${PREFIX}buy data [plan] [number]\n` +
@@ -466,7 +460,7 @@ function cmdMenu(reply, user, senderNumber) {
     `• ${PREFIX}balance • ${PREFIX}profile • ${PREFIX}daily\n` +
     `• ${PREFIX}orders • ${PREFIX}pay • ${PREFIX}support` +
     (isAdmin
- ? `\n\n*ADMIN*\n` +
+? `\n\n*ADMIN*\n` +
         `• ${PREFIX}fund [num] [amt] • ${PREFIX}users\n` +
         `• ${PREFIX}broadcast [msg] • ${PREFIX}smmbal\n` +
         `• ${PREFIX}on / ${PREFIX}off • ${PREFIX}setvoice`
@@ -478,7 +472,6 @@ function cmdAbout(reply) {
   const body =
     `${BOT_NAME} is your one-stop concierge for digital growth and business services.\n` +
     `\n*WHAT WE OFFER*\n` +
-    `• Web hosting (GitHub Pages, 4 quality tiers)\n` +
     `• 50+ social boosts across 12 platforms\n` +
     `• Airtime & data top-up (all NG networks)\n` +
     `• USA WhatsApp Numbers ₦4k\n` +
@@ -486,7 +479,7 @@ function cmdAbout(reply) {
     `• AI assistance powered by Google Gemini\n` +
     `• Bot packages ₦15k - ₦60k\n` +
     `• Voice Clone Technology\n` +
-    `\nFounded and operated by *Okugbe Praise* — Harps Tech.`;
+    `\nFounded and operated by *Okugbe Praise* — Harps Tech.\n\n_Website Builder coming in V2_`;
   return reply(panel('About Harps Tech', body));
 }
 
@@ -550,11 +543,11 @@ function cmdServices(reply, args) {
     const body =
       `Choose a category:\n\n` +
       `*${PREFIX}services smm* — 50+ social boosts (IG, TikTok, YT, X, FB...)\n` +
-      `*${PREFIX}services web* — GitHub web hosting tiers\n` +
       `*${PREFIX}services airtime* — Airtime networks\n` +
       `*${PREFIX}services data* — Data plans (all networks)\n` +
       `*${PREFIX}services biz* — Branding, design & business services\n` +
-      `*${PREFIX}services bots* — Bot packages ₦15k-₦60k`;
+      `*${PREFIX}services bots* — Bot packages ₦15k-₦60k\n\n` +
+      `_Website Builder coming in V2_`;
     return reply(panel('Service Catalog', body));
   }
 
@@ -565,8 +558,8 @@ function cmdServices(reply, args) {
     for (const platform of Object.keys(grouped)) {
       body += `\n*${platform.toUpperCase()}*\n`;
       body += grouped[platform]
-   .map((s) => ` ${s.code.padEnd(5)} ${s.name}\n ${fmtNGN(s.pricePerK)}/1k • min ${s.min.toLocaleString()} • max ${s.max.toLocaleString()}`)
-   .join('\n');
+  .map((s) => ` ${s.code.padEnd(5)} ${s.name}\n ${fmtNGN(s.pricePerK)}/1k • min ${s.min.toLocaleString()} • max ${s.max.toLocaleString()}`)
+  .join('\n');
       body += '\n';
     }
     body += `\n*How to order:*\n${PREFIX}smm [code] [link] [quantity]\n*Example:* ${PREFIX}smm IGF https://instagram.com/yourhandle 1000`;
@@ -574,14 +567,7 @@ function cmdServices(reply, args) {
   }
 
   if (cat === 'web') {
-    const config = loadWebTiers();
-    const GH_OWNER = config.github_username;
-    const body =
-      Object.values(config.tiers).map((t, idx) =>
-        `*Tier ${idx+1} — ${t.name}* (${fmtNGN(t.price)})\n${t.features}\nPages: ${t.pages}`
-      ).join('\n\n') +
-      `\n\n*How to order:*\n${PREFIX}web [tier] [sitename]\n*Example:* ${PREFIX}web 1 my-shop\n\nYour live URL will be:\nhttps://${GH_OWNER}.github.io/[sitename]`;
-    return reply(panel('Web Hosting Tiers', body));
+    return reply(panel('Web Hosting', `🚧 *Coming in V2*\n\nWebsite builder temporarily disabled.\n\nContact ${SUPPORT_HANDLE} for custom websites ₦30k+`));
   }
 
   if (cat === 'airtime') {
@@ -595,8 +581,8 @@ function cmdServices(reply, args) {
   if (cat === 'data') {
     const body =
       Object.entries(DATA_PLANS)
-   .map(([code, p]) => ` ${code.padEnd(8)} ${p.network.padEnd(8)} ${p.name.padEnd(20)} ${fmtNGN(p.price)}`)
-   .join('\n') +
+  .map(([code, p]) => ` ${code.padEnd(8)} ${p.network.padEnd(8)} ${p.name.padEnd(20)} ${fmtNGN(p.price)}`)
+  .join('\n') +
       `\n\n*How to order:*\n${PREFIX}buy data [plan] [number]\n*Example:* ${PREFIX}buy data MTN-2GB 08163738389`;
     return reply(panel('Data Plans', body));
   }
@@ -604,8 +590,8 @@ function cmdServices(reply, args) {
   if (cat === 'biz') {
     const body =
       Object.entries(BIZ_SERVICES)
-   .map(([code, s]) => ` ${code.padEnd(12)} ${s.name.padEnd(28)} ${fmtNGN(s.price)}`)
-   .join('\n') +
+  .map(([code, s]) => ` ${code.padEnd(12)} ${s.name.padEnd(28)} ${fmtNGN(s.price)}`)
+  .join('\n') +
       `\n\n*How to order:*\n${PREFIX}biz [code]\n*Example:* ${PREFIX}biz LOGO\n\nA Harps Tech specialist will reach out to scope your project.`;
     return reply(panel('Business Services', body));
   }
@@ -613,13 +599,18 @@ function cmdServices(reply, args) {
   if (cat === 'bots') {
     const body =
       Object.entries(BOT_PACKAGES)
-   .map(([key, b]) => `*${b.name}* - ${fmtNGN(b.price)}\n${b.desc}\nFeatures: ${b.features}\nCommand: ${PREFIX}buybot ${key}`)
-   .join('\n\n') +
+  .map(([key, b]) => `*${b.name}* - ${fmtNGN(b.price)}\n${b.desc}\nFeatures: ${b.features}\nCommand: ${PREFIX}buybot ${key}`)
+  .join('\n\n') +
       `\n\n*Free Demo:* ${PREFIX}demo - 24hr trial`;
     return reply(panel('Bot Packages', body));
   }
 
   return reply(panel('Service Catalog', `Unknown category: *${cat}*\nUse ${PREFIX}services to see categories.`));
+}
+
+// WEBSITE BUILDER DISABLED FOR V1
+function cmdWebDisabled(reply) {
+  return reply(panel('Web Hosting', `🚧 *Website Builder Coming in V2*\n\nTemporarily disabled to fix bugs.\n\nFor custom websites ₦30k+ contact:\n${SUPPORT_HANDLE}\n\n_Use other services:.menu_`));
 }
 
 // ──.smm [code] [link] [qty] ────────────────────────────────────────────────
@@ -697,89 +688,6 @@ async function cmdSmmStatus(reply, args) {
   return reply(panel('SMM Status', body));
 }
 
-// ──.web [tier] [sitename] ──────────────────────────────────────────────────
-async function cmdWeb(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args) {
-  const config = loadWebTiers();
-  const WEB_TIERS_JSON = config.tiers;
-  const GH_OWNER = config.github_username;
-
-  if (args.length < 2) {
-    return reply(panel('Web Hosting',
-      `Usage:\n${PREFIX}web [tier] [sitename]\n\n` +
-      `Example:\n${PREFIX}web 1 my-shop\n\n` +
-      `See tiers: ${PREFIX}services web`));
-  }
-
-  const tierNum = args[0];
-  const sitename = (args[1] || '').toLowerCase().trim();
-  const tier = WEB_TIERS_JSON[tierNum];
-
-  if (!tier) {
-    return reply(panel('Web Hosting', `Unknown tier *${args[0]}*. Choose 1, 2, 3 or 4.\nSee ${PREFIX}services web.`));
-  }
-
-  if (!isValidRepoName(sitename)) {
-    return reply(panel('Web Hosting',
-      `Invalid sitename *"${sitename}"*.\nUse 2–60 chars, only lowercase letters, digits and hyphens.\nExample: *my-shop*`));
-  }
-
-  if (user.balance < tier.price) {
-    await reply(INSUFFICIENT_MSG);
-    return reply(panel('Web Hosting',
-      `${tier.name} tier costs *${fmtNGN(tier.price)}*.\nYour balance: *${fmtNGN(user.balance)}*.`));
-  }
-
-  if (!process.env.GITHUB_TOKEN) {
-    return reply(panel('Web Hosting', 'Hosting service is temporarily unavailable. Please contact support.'));
-  }
-
-  updateBalance(senderNumber, -tier.price);
-  await reply(panel('Web Hosting',
-    `Building your *${tier.name}* site...\nThis takes 10-30 seconds. Sit tight.`));
-
-  try {
-    const html = generateSiteHTML(tierNum, sitename);
-    const result = await deployStaticSite(sitename, html, `${tier.name} site for ${pushName}`);
-
-    if (!result.ok) {
-      updateBalance(senderNumber, tier.price);
-      const explain =
-        result.reason === 'repo_exists'
-     ? `The sitename *"${sitename}"* is already taken on GitHub. Please try a different one.`
-          : result.message || 'Deployment failed.';
-      await notifyOwner(`Web hosting failed for ${senderNumber} (${sitename}): ${result.message}`);
-      return reply(panel('Web Hosting', `${explain}\n\n*Refund:* ${fmtNGN(tier.price)} returned to your balance.`));
-    }
-
-    const orderId = genOrderId('WEB');
-    const newBal = updateBalance(senderNumber, 0);
-    recordOrder({
-      id: orderId, user: senderNumber, type: 'WEB',
-      summary: `${tier.name} · ${sitename}`,
-      amount: tier.price, status: 'LIVE', meta: { siteUrl: result.siteUrl, repoUrl: result.repoUrl, tier: tierNum },
-    });
-    await notifyOwner(
-      `New web hosting order\nUser: ${pushName} (${senderNumber})\nTier: ${tier.name}\nSite: ${result.siteUrl}\nCharged: ${fmtNGN(tier.price)}`
-    );
-
-    await postToChannel(`🌐 *NEW WEBSITE LIVE* 🌐\n\n${pushName} just launched: ${result.siteUrl}\n\nBuild yours: ${PREFIX}web\n\nJoin: ${CHANNEL_LINK}`);
-
-    return reply(panel('Site Live',
-      `*${tier.name}* deployment complete.\n\n` +
-      `Live URL:\n${result.siteUrl}\n\n` +
-      `Repository:\n${result.repoUrl}\n\n` +
-      `Charged: *${fmtNGN(tier.price)}*\nNew balance: *${fmtNGN(newBal)}*\n` +
-      `Order: *${orderId}*\n\n` +
-      `_ GitHub Pages may take 30–90 seconds to fully publish. Reload the URL if it's not live yet._`));
-  } catch (err) {
-    log.error('Web deploy crash:', err?.message || err);
-    updateBalance(senderNumber, tier.price);
-    await notifyOwner(`Web hosting crashed for ${senderNumber} (${sitename}): ${err?.message}`);
-    return reply(panel('Web Hosting',
-      `Unexpected error during deployment.\nWe've refunded *${fmtNGN(tier.price)}* to your balance. Please try again or contact ${SUPPORT_HANDLE}.`));
-  }
-}
-
 // ──.buy airtime / data ─────────────────────────────────────────────────────
 async function cmdBuy(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args) {
   const sub = (args.shift() || '').toLowerCase();
@@ -844,7 +752,7 @@ async function cmdBuy(reply, notifyOwner, postToChannel, user, senderNumber, pus
   }
 
   return reply(panel('Buy',
-    `Usage:\n${PREFIX}buy airtime [amount] [number]\n${PREFIX}buy data [number]\n\nSee ${PREFIX}services airtime / ${PREFIX}services data`));
+    `Usage:\n${PREFIX}buy airtime [amount] [number]\n${PREFIX}buy data [plan] [number]\n\nSee ${PREFIX}services airtime / ${PREFIX}services data`));
 }
 
 // ──.biz [code] ─────────────────────────────────────────────────────────────
@@ -1245,7 +1153,7 @@ function cmdPanic(reply, senderNumber) {
     `Bot uptime: ${(process.uptime() / 60).toFixed(1)} min\n` +
     `Node: ${process.version}\n` +
     `Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1)} MB\n` +
-    `GitHub token: ${process.env.GITHUB_TOKEN? 'OK' : 'MISSING'}\n` +
+    `GitHub token: DISABLED (V1)\n` +
     `SMM key: ${process.env.SMM_KEY? 'OK' : 'MISSING'}\n` +
     `5SIM key: ${process.env.FIVESIM_API_KEY? 'OK' : 'MISSING'}\n` +
     `Gemini: ${process.env.AI_INTEGRATIONS_GEMINI_API_KEY? 'OK' : 'MISSING'}`));
@@ -1440,7 +1348,6 @@ async function startBot() {
           }
         }
 
-      
         getUser(`${senderJid.split('@')[0]}@s.whatsapp.net`, msg.pushName || senderNumber);
 
       } catch (err) {
