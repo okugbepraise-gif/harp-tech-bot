@@ -1156,33 +1156,17 @@ async function startBot() {
   // END FIX ↑↑↑
   
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
-  const { version } = await fetchLatestBaileysVersion();
+const sock = makeWASocket({
+  auth: state,
+  printQRInTerminal: false,
+  // ... your other config
+});
 
-  log.info(`Starting ${BOT_NAME} (Baileys v${version.join('.')})`);
-
-  const sock = makeWASocket({
-    version,
-    logger,
-    printQRInTerminal: false, // ← NO QR CODE
-    browser: Browsers.macOS('Safari'),
-    auth: {
-      creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, logger),
-    },
-    markOnlineOnConnect: true,
-  });
-
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect } = update;
-
-    // === INSTANT PAIRING - NO 60 SEC DELAY ===
-  if (connection === 'connecting' && !sock.authState.creds.registered && !global.pairingStarted) {
-    global.pairingStarted = true;
-    console.log('!!! HARPS TECH INSTANT MODE!!!');
-
+// === ADD THIS BLOCK RIGHT HERE - AFTER makeWASocket ===
+if (!sock.authState.creds.registered) {
+  console.log('!!! HARPS TECH INSTANT MODE!!!');
+  setTimeout(async () => {
     try {
-      // Wait 8 seconds for Baileys to generate keys inside creds.json
-      await new Promise(resolve => setTimeout(resolve, 8000)); 
       const code = await sock.requestPairingCode(PHONE_NUMBER);
       console.log('\n');
       console.log('═══════════════════════════════════════════');
@@ -1190,12 +1174,17 @@ async function startBot() {
       console.log('═══════════════════════════════════════════\n');
     } catch (err) {
       console.log('[ERROR] Pairing failed:', err.message);
-      global.pairingStarted = false;
     }
-  }
+  }, 8000); // 8 sec delay after sock creation
+}
+// === END BLOCK ===
 
-    if (connection === 'open') {
-      console.log('\n🎉🎉 iPHONE 8 LINKED SUCCESSFULLY 🎉🎉🎉\n');
+sock.ev.on('connection.update', (update) => {
+  const { connection, lastDisconnect } = update;
+  // REMOVE ALL PAIRING CODE FROM HERE
+  
+  if (connection === 'open') {
+    console.log('iPHONE 8 LINKED SUCCESSFULLY');
     } else if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       if (statusCode === DisconnectReason.loggedOut) {
