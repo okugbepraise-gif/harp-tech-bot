@@ -1177,17 +1177,21 @@ async function startBot() {
 
     // === INSTANT PAIRING - NO 60 SEC DELAY ===
     if (connection === 'connecting' && !sock.authState.creds.registered) {
-      console.log('!!! HARPS TECH INSTANT MODE!!!');
-      
-      // Delete auth first
-      if (fs.existsSync(AUTH_FOLDER)) {
-        fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
-        console.log('[CLEANUP] Old auth deleted');
-      }
-      
-      // NO DELAY - REQUEST CODE IMMEDIATELY
-      try {
-        const code = await sock.requestPairingCode(PHONE_NUMBER);
+  console.log('!!! HARPS TECH INSTANT MODE!!!');
+  
+  // Delete auth first
+  if (fs.existsSync(AUTH_FOLDER)) {
+    fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
+    console.log('[CLEANUP] Old auth deleted');
+  }
+  
+  // RECREATE FOLDER + CREDS.JSON AFTER DELETE ↓↓↓
+  fs.mkdirSync(AUTH_FOLDER, { recursive: true });
+  fs.writeFileSync(path.join(AUTH_FOLDER, 'creds.json'), JSON.stringify({}), 'utf8');
+  console.log('[CLEANUP] Fresh auth created');
+  // END FIX ↑↑↑
+  
+  const code = await sock.requestPairingCode(PHONE_NUMBER);
         console.log('\n');
         console.log('═══════════════════════════════════════════');
         console.log(` 🔥🔥 CODE: ${code} 🔥🔥`);
