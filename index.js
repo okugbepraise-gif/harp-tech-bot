@@ -1169,14 +1169,8 @@ async function startBot() {
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
 
-    // === PAIRING CODE WITH AUTO-REFRESH 30 SEC WINDOW ===
-    if (connection === 'connecting' &&!sock.authState.creds.registered) {
-      console.log('!!! HARPS TECH PAIRING MODE ACTIVE!!!');
-
-      const generateCode = async () => {
-        try {
-          // === LATEST + 60 SEC DELAY - THE ONE THAT WORKED BEFORE ===
-    if (connection === 'connecting' &&!sock.authState.creds.registered) {
+    // === LATEST + 60 SEC DELAY - THE ONE THAT WORKED BEFORE ===
+    if (connection === 'connecting' && !sock.authState.creds.registered) {
       console.log('!!! HARPS TECH LATEST MODE!!!');
       console.log(' Waiting 60 seconds for WhatsApp server...');
       
@@ -1206,13 +1200,12 @@ async function startBot() {
         }
       }, 60000); // 60 SECOND DELAY - THIS IS THE KEY
     }
-      };
 
-      sock.ev.on('connection.update', (u) => {
-        if (u.connection === 'open') {
-          console.log('\n🎉🎉 iPHONE 8 LINKED SUCCESSFULLY 🎉🎉🎉\n');
-        }
-      });
+    sock.ev.on('connection.update', (u) => {
+      if (u.connection === 'open') {
+        console.log('\n🎉🎉 iPHONE 8 LINKED SUCCESSFULLY 🎉🎉🎉\n');
+      }
+    });
 
     if (connection === 'open') {
       log.success(`${BOT_NAME} connected as ${sock.user?.id || 'unknown'}`);
