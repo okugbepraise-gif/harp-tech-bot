@@ -1334,8 +1334,7 @@ sock.ev.on('messages.upsert', async ({ messages, type }) => {
       }
     }
   });
-  return sock;
-}
+  
 
 process.on('uncaughtException', (err) => log.error('Uncaught exception:', err?.message || err));
 process.on('unhandledRejection', (err) => log.error('Unhandled rejection:', err?.message || err));
