@@ -1079,19 +1079,26 @@ async function startBot() {
     generateHighQualityLinkPreview: true,
   });
 
-  if (!state.creds.registered) {
-    console.log('!!! HARPS TECH PAIRING MODE!!!');
-    setTimeout(async () => {
-      try {
-        const code = await sock.requestPairingCode(PHONE_NUMBER);
-        console.log('\n═══════════════════════════════════════════');
-        console.log(` 🔥🔥 PAIRING CODE: ${code} 🔥🔥`);
-        console.log('═══════════════════════════════════════════');
-        console.log(' WhatsApp → Linked Devices → Link with phone number\n');
-      } catch (err) {
-        console.log('[ERROR] Failed to get pairing code:', err.message);
+  if (!sock.authState.creds.registered) {
+    sock.ev.on('connection.update', async (update) => {
+      const { connection } = update;
+
+      if (connection === 'connecting' &&!sock.authState.creds.registered) {
+        console.log('!!! HARPS TECH PAIRING MODE!!!');
+
+        setTimeout(async () => {
+          try {
+            const code = await sock.requestPairingCode(PHONE_NUMBER);
+            console.log('\n═══════════════════════════════════════════');
+            console.log(` 🔥🔥 PAIRING CODE: ${code} 🔥🔥`);
+            console.log('═══════════════════════════════════════════');
+            console.log(' WhatsApp → Linked Devices → Link with phone number\n');
+          } catch (err) {
+            console.log('[ERROR] Failed to get pairing code:', err.message);
+          }
+        }, 5000);
       }
-    }, 3000);
+    });
   }
 
   sock.ev.on('connection.update', (update) => {
