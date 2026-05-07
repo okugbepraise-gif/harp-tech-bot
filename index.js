@@ -181,7 +181,7 @@ async function askGemini(text) {
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
     const mode = isPidgin(text)? 'pidgin' : 'business';
     const prompt = mode === 'pidgin'
-    ? `You are HARPS TECH bot. Reply in Nigerian Pidgin English like street guy. Be helpful, funny and friendly. User: ${text}`
+   ? `You are HARPS TECH bot. Reply in Nigerian Pidgin English like street guy. Be helpful, funny and friendly. User: ${text}`
       : `You are HARPS TECH PROv1, a professional Nigerian business WhatsApp bot. Reply professionally, classic, brief and helpful. User: ${text}`;
     const result = await model.generateContent(prompt);
     return result.response.text();
@@ -261,11 +261,11 @@ async function startBot() {
     return;
   }
 
-  // 🔥 BOSS FIX: AUTO CLEAR SESSION ON EVERY START - SOLVES CODE 405 ON RENDER FREE
+  // 🔥 BOSS FIX: FORCE CLEAR SESSION + WAIT LONGER FOR RENDER FREE
   if (fs.existsSync(AUTH_FOLDER)) {
     console.log('🧹 Clearing old session to prevent Code 405...');
     fs.removeSync(AUTH_FOLDER);
-    await delay(2000);
+    await delay(5000);
   }
 
   await fs.ensureDir(AUTH_FOLDER);
@@ -274,7 +274,7 @@ async function startBot() {
   const sock = makeWASocket({
     logger,
     printQRInTerminal: false,
-    browser: Browsers.macOS('Desktop'),
+    browser: Browsers.macOS('Chrome'), // CHROME IS MORE STABLE THAN DESKTOP ON RENDER
     auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
     markOnlineOnConnect: false,
   });
@@ -284,7 +284,7 @@ async function startBot() {
     if (connection === 'connecting' &&!sock.authState.creds.registered &&!pairingCodeRequested) {
       pairingCodeRequested = true;
       console.log('\n!!! HARPS TECH PROv1 PAIRING MODE!!!');
-      console.log('Waiting 25 seconds for Baileys to load...\n'); // INCREASED TO 25s FOR RENDER
+      console.log('Waiting 35 seconds for Baileys to load...\n'); // 35S FOR RENDER SLOW SERVERS
 
       setTimeout(async () => {
         try {
@@ -297,9 +297,9 @@ async function startBot() {
         } catch (err) {
           console.log('[PAIRING ERROR]:', err.message);
           pairingCodeRequested = false;
-          setTimeout(() => process.exit(1), 3000); // FORCE RESTART
+          setTimeout(() => process.exit(1), 5000);
         }
-      }, 25000);
+      }, 35000);
     }
 
     if (connection === 'open') {
@@ -309,14 +309,14 @@ async function startBot() {
       const code = lastDisconnect?.error?.output?.statusCode;
       console.log(`[CONNECTION CLOSED]: Code ${code}`);
 
-      if (code === DisconnectReason.loggedOut) {
-        console.log('Logged out. Deleting session...');
+      if (code === DisconnectReason.loggedOut || code === 405) {
+        console.log('Force clearing session...');
         fs.removeSync(AUTH_FOLDER);
         pairingCodeRequested = false;
-      } else {
-        console.log('Restarting in 10 seconds...');
-        setTimeout(() => process.exit(1), 10000); // Render will auto-restart
       }
+
+      console.log('Restarting in 15 seconds...');
+      setTimeout(() => process.exit(1), 15000);
     }
   });
 
