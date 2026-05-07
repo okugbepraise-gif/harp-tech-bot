@@ -1,1161 +1,716 @@
-const express = require('express');
-const app = express();
-app.get('/', (req, res) => res.send('Harp Tech Bot Alive'));
-app.listen(process.env.PORT || 3000, () => console.log('Web server running'));
+// ===== HARPS TECH PROv1 =====
+import fs from 'fs-extra';
+import axios from 'axios';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import pino from 'pino';
 
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  Browsers,
-  makeCacheableSignalKeyStore,
-  downloadMediaMessage
-} = require('@whiskeysockets/baileys');
-const pino = require('pino');
-const fs = require('fs');
-const path = require('path');
-const { GoogleGenAI } = require('@google/genai');
+// DYNAMIC IMPORT FOR BAILEYS ESM
+const baileys = await import('@whiskeysockets/baileys');
+const makeWASocket = baileys.default;
+const { useMultiFileAuthState, DisconnectReason, Browsers, makeCacheableSignalKeyStore, downloadMediaMessage } = baileys;
 
-const {
-  SMM_SERVICES,
-  AIRTIME_NETWORKS,
-  DATA_PLANS,
-  BIZ_SERVICES,
-  findSmmService,
-  calcSmmCost,
-} = require('./services');
+// ===== CONFIG - HARPS TECH PROv1 =====
+const config = {
+  BOT_NAME: 'HARPS TECH PROv1',
+  DEFAULT_PREFIX: '.',
+  PHONE_NUMBER: process.env.PHONE_NUMBER,
+  OWNER_NUMBER: process.env.OWNER_NUMBER,
+  OPAY_ACCOUNT: process.env.OPAY_ACCOUNT || '8141612736',
+  OPAY_NAME: process.env.OPAY_NAME || 'OKUGBE PRAISE',
+  GEMINI_KEY: process.env.GEMINI_API_KEY,
+  SHOPRIME_KEY: process.env.SHOPRIME_API_KEY,
+  SUPPORT_NUMBER: process.env.OWNER_NUMBER,
+  RENDER_URL: process.env.RENDER_EXTERNAL_URL || `https://${process.env.RENDER_SERVICE_NAME}.onrender.com`,
+  BANNED_WORDS: ['fuck','idiot','stupid','mumu','ode','bastard','fool','shit','dick','pussy'],
+  REPLY_DELAY: 2500,
 
-process.on('uncaughtException', (err) => {
-  console.log('[CRITICAL] Uncaught Exception:', err.message);
-});
+  // DISCLAIMER - TO PROTECT YOU BOSS
+  DISCLAIMER: `*⚠️ DISCLAIMER*\n\nHARPS TECH PROv1 is only a reseller platform. We use 3rd party service provider Shoprime for all social media services.\n\n1. We do not guarantee 100% retention. Drop may occur.\n2. Account must be PUBLIC. Private accounts will be cancelled automatically.\n3. Delivery time is estimated. Actual time may vary.\n4. No refunds after order is processed by Shoprime.\n5. For bulk discount, contact owner directly.\n\nBy using this bot, you agree to these terms.`,
 
-process.on('unhandledRejection', (err) => {
-  console.log('[CRITICAL] Unhandled Rejection:', err.message);
-});
+  // RANDOM ADS WITH 📢
+  ADS: [
+    "📢 HARPS TECH: Cheapest 1GB Data = ₦280! Type.data mtn 1gb",
+    "📢 USA Number for WhatsApp?.yanky usa - ₦500 instant!",
+    "📢 1K TikTok Followers = ₦15K. Real & Active. Type.followers",
+    "📢 10 IG Followers = ₦350. Nigerian Active. Type.followers instagram <link> 10",
+    "📢 10 YouTube Subs = ₦1,200. Type.subs youtube <link> 10",
+    "📢 WAEC/NECO Scratch Card Available!.exam waec - ₦800",
+    "📢 Bet9ja Instant Funding?.betfund 1000 - Fast!",
+    "📢 Pay NEPA Bill Here!.electricity 5000",
+    "📢 DSTV Compact = ₦10,500.cable dstv compact",
+    "📢 Premium Plan = ₦30K.premium - Netflix + 1K Followers FREE",
+    "📢 Need Hostel in School?.hostel_hunt oau - ₦500"
+  ],
 
-const {
-  placeOrder: placeSmmOrder,
-  getOrderStatus: getSmmStatus,
-  getPanelBalance: getSmmBalance,
-  listPanelServices: listSmmServices,
-} = require('./smm');
-const { getNumber: get5SimNumber, getSms: get5SimSms } = require('./5sim');
+  // 31 NIGERIAN SERVICES - YOUR CUSTOM PRICES
+  SERVICES: {
+    tiktok_followers: { min: 30, max: 1000000, price_per_1k: 15000, name: 'TikTok Followers', cat: 'Social', example: '.followers tiktok https://tiktok.com/@username 1000' },
+    tiktok_likes: { min: 10, max: 500000, price_per_1k: 5000, name: 'TikTok Likes', cat: 'Social', example: '.likes tiktok https://tiktok.com/@username 10' },
+    tiktok_views: { min: 100, max: 10000000, price_per_1k: 2000, name: 'TikTok Views', cat: 'Social', example: '.views tiktok https://tiktok.com/@username 1000' },
+    instagram_followers: { min: 10, max: 20000, price_per_1k: 35000, name: 'Instagram Followers', cat: 'Social', example: '.followers instagram https://instagram.com/username 10' },
+    instagram_likes: { min: 10, max: 500000, price_per_1k: 5000, name: 'Instagram Likes', cat: 'Social', example: '.likes instagram https://instagram.com/post 10' },
+    instagram_views: { min: 100, max: 500000, price_per_1k: 1000, name: 'Instagram Views', cat: 'Social', example: '.views instagram https://instagram.com/reel 100' },
+    youtube_subs: { min: 50, max: 100000, price_per_1k: 120000, name: 'YouTube Subscribers', cat: 'Social', example: '.subs youtube https://youtube.com/@channel 10' },
+    youtube_views: { min: 1000, max: 5000000, price_per_1k: 2000, name: 'YouTube Views', cat: 'Social', example: '.views youtube https://youtube.com/watch?v=xxx 1000' },
+    facebook_followers: { min: 100, max: 100000, price_per_1k: 7000, name: 'Facebook Followers', cat: 'Social', example: '.followers facebook https://facebook.com/page 100' },
+    twitter_followers: { min: 100, max: 70000, price_per_1k: 250000, name: 'Twitter Followers', cat: 'Social', example: '.followers twitter https://twitter.com/username 100' },
+    mtn_data_1gb: { price: 280, name: 'MTN 1GB Data', cat: 'Data', example: '.data mtn 1gb 08012345678' },
+    airtel_data_2gb: { price: 550, name: 'Airtel 2GB Data', cat: 'Data', example: '.data airtel 2gb 08012345678' },
+    glo_data_5gb: { price: 1200, name: 'Glo 5GB Data', cat: 'Data', example: '.data glo 5gb 08012345678' },
+    airtime: { min: 50, max: 50000, price_per_1: 1, name: 'Airtime All Networks', cat: 'Airtime', example: '.airtime mtn 500 08012345678' },
+    electricity: { min: 1000, max: 50000, name: 'Electricity Bill', cat: 'Bills', example: '.electricity 5000 Ikeja 123456789' },
+    dstv_compact: { price: 10500, name: 'DSTV Compact', cat: 'Bills', example: '.cable dstv compact 123456789' },
+    gotv_max: { price: 5700, name: 'GOTV Max', cat: 'Bills', example: '.cable gotv max 123456789' },
+    startimes: { price: 3800, name: 'Startimes Smart', cat: 'Bills', example: '.cable startimes smart 123456789' },
+    bet9ja: { min: 100, max: 100000, name: 'Bet9ja Funding', cat: 'Betting', example: '.betfund bet9ja 1000 123456789' },
+    sportybet: { min: 100, max: 100000, name: 'Sportybet Funding', cat: 'Betting', example: '.betfund sportybet 1000 123456789' },
+    msport: { min: 100, max: 100000, name: 'MSport Funding', cat: 'Betting', example: '.betfund msport 1000 123456789' },
+    waec_scratch: { price: 800, name: 'WAEC Scratch Card', cat: 'Education', example: '.exam waec' },
+    neco_scratch: { price: 800, name: 'NECO Scratch Card', cat: 'Education', example: '.exam neco' },
+    jamb_pin: { price: 4700, name: 'JAMB ePIN', cat: 'Education', example: '.exam jamb' },
+    yanky_usa: { price: 500, name: 'USA Number', cat: 'Numbers', example: '.yanky usa' },
+    yanky_uk: { price: 600, name: 'UK Number', cat: 'Numbers', example: '.yanky uk' },
+    yanky_canada: { price: 550, name: 'Canada Number', cat: 'Numbers', example: '.yanky canada' },
+    netflix: { price: 3500, name: 'Netflix Account 1 Month', cat: 'Streaming', example: '.netflix' },
+    dstv_box_office: { price: 1000, name: 'DSTV Box Office Rental', cat: 'Streaming', example: '.dstv_box_office' },
+    showmax: { price: 2900, name: 'Showmax Mobile', cat: 'Streaming', example: '.showmax' },
+    spotify: { price: 1200, name: 'Spotify Premium 1 Month', cat: 'Streaming', example: '.spotify' },
+    apple_music: { price: 1200, name: 'Apple Music 1 Month', cat: 'Streaming', example: '.apple_music' },
+    bulk_sms: { min: 100, price_per_1: 3, name: 'Bulk SMS Units', cat: 'Marketing', example: '.bulk_sms 08012345678,08098765432 Hello!' },
+    biz_card: { price: 5000, name: 'Digital Business Card Design', cat: 'Design', example: '.biz_card' },
+    logo: { price: 8000, name: 'Logo Design', cat: 'Design', example: '.logo' },
+    hostel_hunt: { price: 500, name: 'Hostel Agent Service', cat: 'Student', example: '.hostel_hunt oau' },
+    project_write: { price: 15000, name: 'Project Writing Service', cat: 'Student', example: '.project_write' },
+    crypto_buy: { min: 1000, name: 'USDT/BTC Purchase', cat: 'Crypto', example: '.crypto_buy usdt 5000' },
+    vpn: { price: 2000, name: 'Premium VPN 1 Month', cat: 'Tools', example: '.vpn' }
+  },
 
-// ============================================================================
-// CONFIGURATION
-// ============================================================================
-const OWNER_NUMBER = process.env.OWNER_NUMBER || '2348141612736';
-const PHONE_NUMBER = process.env.PHONE_NUMBER || '2348141612736';
-const BOT_NAME = 'HARPS TECH';
-const BRAND_TAGLINE = 'Premium Digital Services Concierge';
-const PREFIX = '.';
-const AUTH_FOLDER = path.join(__dirname, 'auth');
-const DB_FILE = path.join(__dirname, 'database.json');
-const SUPPORT_HANDLE = `wa.me/${OWNER_NUMBER}`;
-const PAY_INFO = 'Opay • 8141612736 • Okugbe Praise';
-const CHANNEL_LINK = process.env.CHANNEL_LINK || '';
-const GROUP_LINK = process.env.GROUP_LINK || '';
+  // PREMIUM PLANS
+  PREMIUM: {
+    basic: { price: 30000, name: 'Premium Basic', benefits: ['Netflix 1 Month', '1K TikTok Followers FREE', '10% Discount All Services', 'Priority Support'], duration_days: 30 },
+    pro: { price: 50000, name: 'Premium Pro', benefits: ['Netflix 1 Month', 'Spotify 1 Month', '2K TikTok Followers FREE', '1K IG Followers FREE', '15% Discount', 'VIP Support'], duration_days: 30 },
+    biz: { price: 100000, name: 'Business Premium', benefits: ['All Pro Benefits', '5K TikTok Followers FREE', 'Custom Bot Setup', '20% Discount', 'Dedicated Account Manager'], duration_days: 30 }
+  },
 
-function loadWebTiers() {
-  return { tiers: {}, github_username: "harpstech-ng" };
-}
-
-// ============================================================================
-// LOGGER
-// ============================================================================
-const logger = pino({ level: 'silent' });
-const log = {
-  info: (...a) => console.log('',...a),
-  warn: (...a) => console.warn('',...a),
-  error: (...a) => console.error('[ERROR]',...a),
-  success: (...a) => console.log('[OK]',...a),
+  GAMES: {
+    trivia: { name: 'Trivia Quiz' }, slot: { name: 'Slot Machine' },
+    blackjack: { name: 'Blackjack 21' }, dice: { name: 'Dice Roll' },
+    rps: { name: 'Rock Paper Scissors' }, tictactoe: { name: 'Tic Tac Toe' },
+    hangman: { name: 'Hangman' }, math: { name: 'Math Quiz' },
+    flag: { name: 'Guess Flag' }, lyrics: { name: 'Lyrics Quiz' },
+    emoji: { name: 'Emoji Guess' }, wordchain: { name: 'Word Chain' },
+    fastest: { name: 'Fastest Finger' }, coin: { name: 'Coin Flip' },
+    wyr: { name: 'Would You Rather' }, nhie: { name: 'Never Have I Ever' },
+    riddle: { name: 'Riddle' }, anagram: { name: 'Anagrams' },
+    guessnum: { name: 'Guess Number' }, tod: { name: 'Truth or Dare' }
+  }
 };
 
-// ============================================================================
-// FORMATTING HELPERS
-// ============================================================================
-const HR = '━━━━━━━━━━━━━━━━━━━━━━━━';
-const fmtNGN = (n) => `₦${Number(n || 0).toLocaleString('en-NG')}`;
-
-function header(title) {
-  return `*${BOT_NAME}*\n_${title}_\n${HR}`;
-}
-
-function footer() {
-  return `${HR}\n_${BRAND_TAGLINE}_\nSupport: ${SUPPORT_HANDLE}`;
-}
-
-function panel(title, body) {
-  return `${header(title)}\n${body}\n${footer()}`;
-}
-
-function genOrderId(prefix = 'HT') {
-  const t = Date.now().toString(36).toUpperCase().slice(-6);
-  const r = Math.random().toString(36).toUpperCase().slice(2, 5);
-  return `${prefix}-${t}${r}`;
-}
-
-// ============================================================================
-// DATABASE (fs-based JSON)
-// ============================================================================
-function loadDB() {
-  try {
-    if (!fs.existsSync(DB_FILE)) {
-      fs.writeFileSync(DB_FILE, JSON.stringify({ users: {}, orders: [], groups: {}, demos: {} }, null, 2));
-    }
-    const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
-    if (!data.users) data.users = {};
-    if (!data.orders) data.orders = [];
-    if (!data.groups) data.groups = {};
-    if (!data.demos) data.demos = {};
-    return data;
-  } catch (err) {
-    log.error('Failed to load database:', err.message);
-    return { users: {}, orders: [], groups: {}, demos: {} };
-  }
-}
-
-function saveDB(data) {
-  try { fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2)); }
-  catch (err) { log.error('Failed to save database:', err.message); }
-}
-
-function getUser(jid, name = '') {
-  const db = loadDB();
-  const number = jid.split('@')[0];
-  if (!db.users[number]) {
-    db.users[number] = { jid, name: name || number, balance: 0, joined: new Date().toISOString(), daily: 0, chillMode: false };
-    saveDB(db);
-  } else {
-    let dirty = false;
-    if (name && db.users[number].name!== name) { db.users[number].name = name; dirty = true; }
-    if (!db.users[number].jid) { db.users[number].jid = jid; dirty = true; }
-    if (dirty) saveDB(db);
-  }
-  return db.users[number];
-}
-
-function updateBalance(number, delta) {
-  const db = loadDB();
-  if (!db.users[number]) {
-    db.users[number] = { jid: `${number}@s.whatsapp.net`, name: number, balance: 0, joined: new Date().toISOString(), daily: 0, chillMode: false };
-  }
-  db.users[number].balance = (db.users[number].balance || 0) + delta;
-  saveDB(db);
-  return db.users[number].balance;
-}
-
-function recordOrder(order) {
-  const db = loadDB();
-  db.orders.push({...order, createdAt: new Date().toISOString() });
-  if (db.orders.length > 500) db.orders = db.orders.slice(-500);
-  saveDB(db);
-}
-
-function getUserOrders(number, limit = 5) {
-  const db = loadDB();
-  return db.orders.filter((o) => o.user === number).slice(-limit).reverse();
-}
-
-function getGroupSettings(groupId) {
-  const db = loadDB();
-  if (!db.groups[groupId]) {
-    db.groups[groupId] = { enabled: true, cruise: true };
-    saveDB(db);
-  }
-  return db.groups[groupId];
-}
-
-function setGroupSettings(groupId, settings) {
-  const db = loadDB();
-  db.groups[groupId] = {...db.groups[groupId],...settings };
-  saveDB(db);
-}
-
-// ============================================================================
-// GEMINI AI
-// ============================================================================
-let aiClient = null;
-function getAI() {
-  if (aiClient) return aiClient;
-  const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
-  const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
-  if (!apiKey ||!baseUrl) return null;
-  aiClient = new GoogleGenAI({ apiKey, httpOptions: { baseUrl } });
-  return aiClient;
-}
-
-async function askGemini(prompt) {
-  const ai = getAI();
-  if (!ai) return 'AI service is not configured. Please contact Harps Tech.';
-  try {
-    const res = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { maxOutputTokens: 8192 },
-    });
-    return (res.text || '').trim() || 'No response generated.';
-  } catch (err) {
-    log.error('Gemini error:', err?.message || err);
-    return 'AI request failed. Please try again later.';
-  }
-}
-
-// ============================================================================
-// CONSTANTS / COSTS
-// ============================================================================
-const AI_COST = 50;
-const INSUFFICIENT_MSG =
-  'Insufficient balance. Please contact Harps Tech to fund your account.\n\n' +
-  `*Payment:* ${PAY_INFO}\n` +
-  `Once paid, message ${SUPPORT_HANDLE} with proof — your balance is credited within minutes.`;
-
-const BOT_PACKAGES = {
-  basic: { name: 'Basic Bot', price: 15000, features: 20, desc: 'Menu, Balance, AI, Airtime, Data' },
-  standard: { name: 'Standard Bot', price: 25000, features: 50, desc: 'All Basic + SMM, Biz Services' },
-  pro: { name: 'Pro Bot', price: 40000, features: 80, desc: 'All Standard + Games, Referral, Channel Post' },
-  premium: { name: 'Premium Bot', price: 60000, features: 101, desc: 'All Pro + Voice Clone, Auto Status, Bulk SMS' }
+// ===== SHOPRIME SERVICE ID MAPPING =====
+const SHOPRIME_SERVICES = {
+  tiktok_followers: 10720,
+  tiktok_likes: 10649,
+  tiktok_views: 10732,
+  instagram_followers: 10619,
+  instagram_likes: 10644,
+  instagram_views: 9846,
+  facebook_followers: 10129,
+  twitter_followers: 9582,
+  youtube_subs: 8701
 };
 
-const GROWTH_TRIALS = {
-  '10fl': { name: '10 Instagram Followers', price: 50, service: 'IGF', qty: 10 },
-  '10tiktok': { name: '10 TikTok Followers', price: 50, service: 'TTF', qty: 10 },
-  '50likes': { name: '50 Instagram Likes', price: 30, service: 'IGL', qty: 50 },
-  '100views': { name: '100 TikTok Views', price: 20, service: 'TTV', qty: 100 }
-};
+// ===== DATABASE =====
+const DB_PATH = './users.json';
+const ORDER_DB = './orders.json';
+const VOICE_DB = './voices.json';
+const SETTINGS_DB = './settings.json';
+[DB_PATH, ORDER_DB, VOICE_DB, SETTINGS_DB].forEach(p => { if (!fs.existsSync(p)) fs.writeJsonSync(p, {}); });
+const getDB = () => fs.readJsonSync(DB_PATH);
+const saveDB = (data) => { try { fs.writeJsonSync(DB_PATH, data); } catch(e){ console.log('DB Save Error:', e); } };
+const getOrders = () => fs.readJsonSync(ORDER_DB);
+const saveOrders = (data) => { try { fs.writeJsonSync(ORDER_DB, data); } catch(e){ console.log('Order Save Error:', e); } };
+const getVoices = () => fs.readJsonSync(VOICE_DB);
+const saveVoices = (data) => { try { fs.writeJsonSync(VOICE_DB, data); } catch(e){ console.log('Voice Save Error:', e); } };
+const getSettings = () => fs.readJsonSync(SETTINGS_DB);
+const saveSettings = (data) => { try { fs.writeJsonSync(SETTINGS_DB, data); } catch(e){ console.log('Settings Save Error:', e); } };
 
-const CHILL_QUOTES = [
-  "Life na pot of beans, if you no get fire, you go chop am raw 😂",
-  "Money no dey tree, but if you plant am well, e go grow 💰",
-  "No stress yourself, problem no dey finish. Just dey breathe 🌬️",
-  "Hustle hard, but remember to chop. Empty stomach no dey code 😂",
-  "Today na today. Tomorrow na tomorrow. But money na now 💸"
-];
-
-const SAVAGE_REPLIES = [
-  "You dey whine me? 😂 Focus on making money not insulting bot",
-  "Your papa no train you? 😏 Respect HARPS TECH or comot",
-  "Omo you get mouth o 😂 But you get money? Type.pay",
-  "Insult no dey pay bills 💰 Send.menu make you blow",
-  "You think say na play? 😈 I be AI with anger issues"
-];
-
-const JOKES = [
-  "Why programmer no dey go party? Because e get too many BUGs 😂",
-  "Wetin be phone wey no get network? Ex-boyfriend 📱💔",
-  "How you know say food sweet? When you finish am before photo 😂",
-  "Why NEPA no dey smile? Because dem dey always TAKE light 😂⚡"
-];
-
-const CURSE_WORDS = ['fuck', 'shit', 'bastard', 'idiot', 'mumu', 'ode', 'fool', 'stupid', 'useless', 'yeye', 'mad'];
-
-function isCursed(text) {
-  const lower = text.toLowerCase();
-  return CURSE_WORDS.some(word => lower.includes(word));
-}
-
-async function autoSavage(sock, msg, from, pushName) {
-  const savageClapbacks = [
-    `@${msg.key.participant?.split('@')[0] || pushName} You dey mad? 😂 Focus on making money not insulting bot`,
-    `@${msg.key.participant?.split('@')[0] || pushName} Your papa no train you? 😏 Respect HARPS TECH or comot`,
-    `@${msg.key.participant?.split('@')[0] || pushName} Omo you get mouth o 😂 But you get money? Type.pay`,
-    `@${msg.key.participant?.split('@')[0] || pushName} Insult no dey pay bills 💰 Send.menu make you blow`,
-    `@${msg.key.participant?.split('@')[0] || pushName} You think say na play? 😈 I be AI with anger issues`
-  ];
-  const pick = savageClapbacks[Math.floor(Math.random() * savageClapbacks.length)];
-  await sock.sendMessage(from, { text: pick }, { quoted: msg });
-}
-
-// ============================================================================
-// COMMAND ROUTER
-// ============================================================================
-async function handleCommand(sock, msg, body) {
-  const from = msg.key.remoteJid;
-  const senderJid = msg.key.participant || msg.key.remoteJid;
-  const senderNumber = senderJid.split('@')[0].split(':')[0];
-  const pushName = msg.pushName || senderNumber;
-  const user = getUser(`${senderNumber}@s.whatsapp.net`, pushName);
-  const isGroup = from.endsWith('@g.us');
-
-  if (isGroup) {
-    const groupSet = getGroupSettings(from);
-    if (!groupSet.enabled && senderNumber!== OWNER_NUMBER) return;
-  }
-
-  const args = body.trim().slice(PREFIX.length).split(/\s+/);
-  const command = (args.shift() || '').toLowerCase();
-
-  const reply = (text) => sock.sendMessage(from, { text }, { quoted: msg });
-  const notifyOwner = async (text) => {
-    try { await sock.sendMessage(`${OWNER_NUMBER}@s.whatsapp.net`, { text }); } catch (e) {}
-  };
-
-  const postToChannel = async (text) => {
-    if (!CHANNEL_LINK) return;
-    try {
-      const channelId = CHANNEL_LINK.split('/').pop() + '@newsletter';
-      await sock.sendMessage(channelId, { text });
-    } catch (e) { log.error('Channel post failed:', e.message); }
-  };
-
-  switch (command) {
-    case 'menu': case 'help': case 'start': return cmdMenu(reply, user, senderNumber);
-    case 'about': return cmdAbout(reply);
-    case 'balance': case 'bal': return cmdBalance(reply, user, senderNumber, args);
-    case 'profile': return cmdProfile(reply, user, senderNumber);
-    case 'orders': return cmdOrders(reply, senderNumber);
-    case 'support': case 'contact': return cmdSupport(reply);
-    case 'pay': return cmdPay(reply);
-    case 'services': return cmdServices(reply, args);
-    case 'smm': return cmdSmm(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args);
-    case 'smmstatus': return cmdSmmStatus(reply, args);
-    case 'web': return cmdWebDisabled(reply);
-    case 'buy': return cmdBuy(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args);
-    case 'biz': return cmdBiz(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args);
-    case 'ai': return cmdAi(reply, user, senderNumber, pushName, args);
-    case 'buybot': return cmdBuyBot(reply, notifyOwner, user, senderNumber, pushName, args);
-    case 'demo': return cmdDemo(reply, notifyOwner, user, senderNumber, pushName);
-    case 'buynumber': return cmdBuyNumber(reply, notifyOwner, postToChannel, user, senderNumber, pushName);
-    case 'chill': return cmdChill(reply, user, senderNumber, pushName);
-    case 'nochill': return cmdNoChill(reply, user, senderNumber);
-    case 'savage': return cmdSavage(reply);
-    case 'jokes': return cmdJokes(reply);
-    case 'meme': return cmdMeme(reply, user, senderNumber, args);
-    case 'ship': return cmdShip(reply, args);
-    case 'truth': return cmdTruth(reply, args);
-    case 'quiz': return cmdQuiz(reply, from, sock);
-    case 'rps': return cmdRPS(reply, args);
-    case 'on': return cmdGroupOn(reply, from, senderNumber);
-    case 'off': return cmdGroupOff(reply, from, senderNumber);
-    case 'group': return cmdGroupToggle(reply, from, senderNumber, args);
-    case 'growth': return cmdGrowth(reply);
-    case 'daily': return cmdDaily(reply, user, senderNumber);
-    case 'voice': return cmdVoiceClone(reply, sock, msg, from, user, senderNumber, args);
-    case 'setvoice': return cmdSetVoice(reply, sock, msg, senderNumber);
-    case 'fund': return cmdFund(reply, sock, senderNumber, args);
-    case 'broadcast': return cmdBroadcast(reply, sock, senderNumber, args);
-    case 'users': return cmdUsers(reply, senderNumber);
-    case 'smmbal': return cmdSmmBal(reply, senderNumber);
-    case 'smmlist': return cmdSmmList(reply, senderNumber, args);
-    case 'panic': return cmdPanic(reply, senderNumber);
-    default: return;
-  }
-}
-
-// ============================================================================
-// COMMAND IMPLEMENTATIONS
-// ============================================================================
-function cmdMenu(reply, user, senderNumber) {
-  const isAdmin = senderNumber === OWNER_NUMBER;
-  const body =
-    `Welcome, *${user.name}*\n` +
-    `Balance: *${fmtNGN(user.balance)}*\n` +
-    `\n*MAIN MENU*\n` +
-    `• ${PREFIX}services — view our service catalog\n` +
-    `• ${PREFIX}smm [code] [link] [qty] — order social boost\n` +
-    `• ${PREFIX}buy airtime [amt] [number]\n` +
-    `• ${PREFIX}buy data [plan] [number]\n` +
-    `• ${PREFIX}biz [code] — request a business service\n` +
-    `• ${PREFIX}ai [question] — ask Gemini AI\n` +
-    `• ${PREFIX}buynumber — USA WhatsApp Number ₦4k\n` +
-    `\n*BOT PACKAGES*\n` +
-    `• ${PREFIX}buybot [basic/standard/pro/premium]\n` +
-    `• ${PREFIX}demo — Free 24hr demo\n` +
-    `\n*GROWTH TRIALS*\n` +
-    `• ${PREFIX}growth — 10 Followers ₦50\n` +
-    `\n*CRUISE*\n` +
-    `• ${PREFIX}chill • ${PREFIX}savage • ${PREFIX}jokes\n` +
-    `• ${PREFIX}meme • ${PREFIX}ship • ${PREFIX}truth\n` +
-    `• ${PREFIX}quiz • ${PREFIX}rps • ${PREFIX}voice\n` +
-    `\n*ACCOUNT*\n` +
-    `• ${PREFIX}balance • ${PREFIX}profile • ${PREFIX}daily\n` +
-    `• ${PREFIX}orders • ${PREFIX}pay • ${PREFIX}support` +
-    (isAdmin? `\n\n*ADMIN*\n` +
-        `• ${PREFIX}fund [num] [amt] • ${PREFIX}users\n` +
-        `• ${PREFIX}broadcast [msg] • ${PREFIX}smmbal\n` +
-        `• ${PREFIX}on / ${PREFIX}off • ${PREFIX}setvoice`
-      : '');
-  return reply(panel('Service Concierge', body));
-}
-
-function cmdAbout(reply) {
-  const body =
-    `${BOT_NAME} is your one-stop concierge for digital growth and business services.\n` +
-    `\n*WHAT WE OFFER*\n` +
-    `• 50+ social boosts across 12 platforms\n` +
-    `• Airtime & data top-up (all NG networks)\n` +
-    `• USA WhatsApp Numbers ₦4k\n` +
-    `• Brand identity, design & marketing services\n` +
-    `• AI assistance powered by Google Gemini\n` +
-    `• Bot packages ₦15k - ₦60k\n` +
-    `• Voice Clone Technology\n` +
-    `\nFounded and operated by *Okugbe Praise* — Harps Tech.\n\n_Website Builder coming in V2_`;
-  return reply(panel('About Harps Tech', body));
-}
-
-function cmdBalance(reply, user, senderNumber, args) {
-  if (senderNumber === OWNER_NUMBER && args[0]) {
-    const target = args[0].replace(/[^0-9]/g, '');
-    const db = loadDB();
-    const u = db.users[target];
-    if (!u) return reply(panel('Account Lookup', `No account found for *${target}*.`));
-    return reply(panel('Account Lookup',
-      `Number: *${target}*\nName: ${u.name}\nBalance: *${fmtNGN(u.balance)}*\nJoined: ${u.joined?.slice(0,10) || '—'}`));
-  }
-  return reply(panel('Account Balance',
-    `Name: *${user.name}*\nNumber: ${senderNumber}\nBalance: *${fmtNGN(user.balance)}*\n\nTop up via ${PAY_INFO}\nThen send proof to ${SUPPORT_HANDLE}`));
-}
-
-function cmdProfile(reply, user, senderNumber) {
-  return reply(panel('Your Profile',
-    `Name: *${user.name}*\n` +
-    `Number: ${senderNumber}\n` +
-    `Balance: *${fmtNGN(user.balance)}*\n` +
-    `Member since: ${user.joined? user.joined.slice(0,10) : '—'}\n` +
-    `\nUse ${PREFIX}orders to view your recent activity.`));
-}
-
-function cmdOrders(reply, senderNumber) {
-  const orders = getUserOrders(senderNumber, 8);
-  if (!orders.length) {
-    return reply(panel('Your Orders', 'You have no orders yet.\nTry ' + PREFIX + 'services to get started.'));
-  }
-  const lines = orders.map((o) =>
-    `• [${o.id}] ${o.type}\n ${o.summary}\n ${fmtNGN(o.amount)} • ${o.status} • ${o.createdAt.slice(5,16).replace('T',' ')}`
-  ).join('\n');
-  return reply(panel('Your Recent Orders', lines));
-}
-
-function cmdSupport(reply) {
-  const body =
-    `Need help? We're here.\n\n` +
-    `*WhatsApp:* ${SUPPORT_HANDLE}\n` +
-    `*Channel:* ${CHANNEL_LINK || 'Coming soon'}\n` +
-    `*Owner:* Okugbe Praise\n` +
-    `*Hours:* Mon–Sat, 8am–10pm WAT`;
-  return reply(panel('Customer Support', body));
-}
-
-function cmdPay(reply) {
-  const body =
-    `Top up your wallet to access all services.\n\n` +
-    `*Payment account*\n${PAY_INFO}\n\n` +
-    `After payment, send your proof to ${SUPPORT_HANDLE}.\n` +
-    `Your balance is credited within minutes.`;
-  return reply(panel('Fund Your Account', body));
-}
-
-function cmdServices(reply, args) {
-  const cat = (args[0] || '').toLowerCase();
-
-  if (!cat) {
-    const body =
-      `Choose a category:\n\n` +
-      `*${PREFIX}services smm* — 50+ social boosts (IG, TikTok, YT, X, FB...)\n` +
-      `*${PREFIX}services airtime* — Airtime networks\n` +
-      `*${PREFIX}services data* — Data plans (all networks)\n` +
-      `*${PREFIX}services biz* — Branding, design & business services\n` +
-      `*${PREFIX}services bots* — Bot packages ₦15k-₦60k\n\n` +
-      `_Website Builder coming in V2_`;
-    return reply(panel('Service Catalog', body));
-  }
-
-  if (cat === 'smm') {
-    const grouped = {};
-    for (const s of SMM_SERVICES) (grouped[s.platform] ||= []).push(s);
-    let body = '';
-    for (const platform of Object.keys(grouped)) {
-      body += `\n*${platform.toUpperCase()}*\n`;
-      body += grouped[platform]
-.map((s) => ` ${s.code.padEnd(5)} ${s.name}\n ${fmtNGN(s.pricePerK)}/1k • min ${s.min.toLocaleString()} • max ${s.max.toLocaleString()}`)
-.join('\n');
-      body += '\n';
-    }
-    body += `\n*How to order:*\n${PREFIX}smm [code] [link] [quantity]\n*Example:* ${PREFIX}smm IGF https://instagram.com/yourhandle 1000`;
-    return reply(panel('SMM Catalog', body.trim()));
-  }
-
-  if (cat === 'web') {
-    return reply(panel('Web Hosting', `🚧 *Coming in V2*\n\nWebsite builder temporarily disabled.\n\nContact ${SUPPORT_HANDLE} for custom websites ₦30k+`));
-  }
-
-  if (cat === 'airtime') {
-    const body =
-      `Top up any of these networks:\n` +
-      AIRTIME_NETWORKS.map((n) => ` • ${n}`).join('\n') +
-      `\n\n*How to order:*\n${PREFIX}buy airtime [amount] [number]\n*Example:* ${PREFIX}buy airtime 500 08163738389`;
-    return reply(panel('Airtime Top-Up', body));
-  }
-
-  if (cat === 'data') {
-    const body =
-      Object.entries(DATA_PLANS)
-.map(([code, p]) => ` ${code.padEnd(8)} ${p.network.padEnd(8)} ${p.name.padEnd(20)} ${fmtNGN(p.price)}`)
-.join('\n') +
-      `\n\n*How to order:*\n${PREFIX}buy data [plan] [number]\n*Example:* ${PREFIX}buy data MTN-2GB 08163738389`;
-    return reply(panel('Data Plans', body));
-  }
-
-  if (cat === 'biz') {
-    const body =
-      Object.entries(BIZ_SERVICES)
-.map(([code, s]) => ` ${code.padEnd(12)} ${s.name.padEnd(28)} ${fmtNGN(s.price)}`)
-.join('\n') +
-      `\n\n*How to order:*\n${PREFIX}biz [code]\n*Example:* ${PREFIX}biz LOGO\n\nA Harps Tech specialist will reach out to scope your project.`;
-    return reply(panel('Business Services', body));
-  }
-
-  if (cat === 'bots') {
-    const body =
-      Object.entries(BOT_PACKAGES)
-.map(([key, b]) => `*${b.name}* - ${fmtNGN(b.price)}\n${b.desc}\nFeatures: ${b.features}\nCommand: ${PREFIX}buybot ${key}`)
-.join('\n\n') +
-      `\n\n*Free Demo:* ${PREFIX}demo - 24hr trial`;
-    return reply(panel('Bot Packages', body));
-  }
-
-  return reply(panel('Service Catalog', `Unknown category: *${cat}*\nUse ${PREFIX}services to see categories.`));
-}
-
-function cmdWebDisabled(reply) {
-  return reply(panel('Web Hosting', `🚧 *Website Builder Coming in V2*\n\nTemporarily disabled to fix bugs.\n\nFor custom websites ₦30k+ contact:\n${SUPPORT_HANDLE}\n\n_Use other services:.menu_`));
-}
-
-async function cmdSmm(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args) {
-  if (args.length < 3) {
-    return reply(panel('SMM Order',
-      `Usage:\n${PREFIX}smm [code] [link] [quantity]\n\n` +
-      `Example:\n${PREFIX}smm IGF https://instagram.com/yourhandle 1000\n\n` +
-      `See codes: ${PREFIX}services smm`));
-  }
-  const [codeRaw, link, qtyRaw] = args;
-  const service = findSmmService(codeRaw);
-  if (!service) {
-    return reply(panel('SMM Order', `Unknown service code: *${codeRaw}*\nSee available codes with ${PREFIX}services smm.`));
-  }
-  const quantity = parseInt(qtyRaw, 10);
-  if (!quantity || quantity < service.min || quantity > service.max) {
-    return reply(panel('SMM Order',
-      `Invalid quantity for *${service.name}*.\nAllowed: ${service.min.toLocaleString()} – ${service.max.toLocaleString()}.`));
-  }
-  if (!/^https?:\/\//i.test(link)) {
-    return reply(panel('SMM Order', 'Please provide a valid link starting with http:// or https://'));
-  }
-
-  const cost = calcSmmCost(service, quantity);
-  if (user.balance < cost) {
-    await reply(INSUFFICIENT_MSG);
-    return reply(panel('SMM Order',
-      `${service.name}\nQuantity: ${quantity.toLocaleString()}\nCost: ${fmtNGN(cost)}\nYour balance: ${fmtNGN(user.balance)}`));
-  }
-
-  updateBalance(senderNumber, -cost);
-  const orderId = genOrderId('SMM');
-  const result = await placeSmmOrder({ serviceId: service.panelId, link, quantity });
-
-  if (!result.ok) {
-    updateBalance(senderNumber, cost);
-    log.error('SMM panel failure:', result.error);
-    await notifyOwner(`SMM order failed for ${senderNumber} (${service.name}): ${result.error}`);
-    return reply(panel('SMM Order',
-      `Your order could not be processed by the panel.\n_${result.error}_\n\n` +
-      `*Refund:* ${fmtNGN(cost)} returned to your balance.\nNeed help? ${SUPPORT_HANDLE}`));
-  }
-
-  const panelOrderId = result.data?.order || result.data?.Order || '—';
-  const newBal = updateBalance(senderNumber, 0);
-  recordOrder({
-    id: orderId, user: senderNumber, type: 'SMM',
-    summary: `${service.name} · ${quantity.toLocaleString()} → ${link}`,
-    amount: cost, status: 'PROCESSING', meta: { panelOrderId, code: service.code },
-  });
-  await notifyOwner(
-    `New SMM order\nUser: ${pushName} (${senderNumber})\nService: ${service.name}\nQty: ${quantity}\nLink: ${link}\nCharged: ${fmtNGN(cost)}\nPanel ID: ${panelOrderId}`
-  );
-
-  await postToChannel(`🔥 *NEW ORDER* 🔥\n\n${pushName} just ordered ${quantity} ${service.name}!\n\nJoin HARPS TECH: ${CHANNEL_LINK}`);
-
-  return reply(panel('SMM Order Confirmed',
-    `Service: *${service.name}*\nQuantity: ${quantity.toLocaleString()}\nLink: ${link}\n` +
-    `Charged: *${fmtNGN(cost)}*\nNew balance: *${fmtNGN(newBal)}*\n\n` +
-    `Order ID: *${orderId}*\nPanel ref: *${panelOrderId}*\n\n` +
-    `Track status: ${PREFIX}smmstatus ${panelOrderId}`));
-}
-
-async function cmdSmmStatus(reply, args) {
-  const id = args[0];
-  if (!id) return reply(panel('SMM Status', `Usage: ${PREFIX}smmstatus [panel_order_id]`));
-  const r = await getSmmStatus(id);
-  if (!r.ok) return reply(panel('SMM Status', `Could not fetch status: ${r.error}`));
-  const d = r.data || {};
-  const body =
-    `Order: *${id}*\nStatus: *${d.status || '—'}*\n` +
-    `Start count: ${d.start_count?? '—'}\nRemains: ${d.remains?? '—'}\nCharge: ${d.charge?? '—'}`;
-  return reply(panel('SMM Status', body));
-}
-
-async function cmdBuy(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args) {
-  const sub = (args.shift() || '').toLowerCase();
-
-  if (sub === 'airtime') {
-    if (args.length < 2) {
-      return reply(panel('Airtime', `Usage: ${PREFIX}buy airtime [amount] [number]\nExample: ${PREFIX}buy airtime 500 08163738389`));
-    }
-    const amount = parseInt(args[0], 10);
-    const number = (args[1] || '').replace(/[^0-9]/g, '');
-    if (!amount || amount < 50 || amount > 50000) {
-      return reply(panel('Airtime', 'Amount must be between ₦50 and ₦50,000.'));
-    }
-    if (number.length < 10 || number.length > 14) {
-      return reply(panel('Airtime', 'Please provide a valid Nigerian phone number.'));
-    }
-    if (user.balance < amount) {
-      await reply(INSUFFICIENT_MSG);
-      return reply(panel('Airtime', `Top-up of ${fmtNGN(amount)} requires ${fmtNGN(amount)}.\nYour balance: ${fmtNGN(user.balance)}.`));
-    }
-    updateBalance(senderNumber, -amount);
-    const orderId = genOrderId('AIR');
-    const newBal = updateBalance(senderNumber, 0);
-    recordOrder({
-      id: orderId, user: senderNumber, type: 'AIRTIME',
-      summary: `Airtime ${fmtNGN(amount)} → ${number}`,
-      amount, status: 'PROCESSING', meta: { number, amount },
-    });
-    await notifyOwner(`New airtime order\nUser: ${pushName} (${senderNumber})\nAmount: ${fmtNGN(amount)}\nNumber: ${number}\nOrder: ${orderId}`);
-    await postToChannel(`💳 *AIRTIME TOPUP* 💳\n\n${pushName} just bought ${fmtNGN(amount)} airtime!\n\nTop up yours: ${PREFIX}buy airtime`);
-    return reply(panel('Airtime Order',
-      `Amount: *${fmtNGN(amount)}*\nNumber: *${number}*\nCharged: *${fmtNGN(amount)}*\nNew balance: *${fmtNGN(newBal)}*\n\nOrder *${orderId}* is processing — usually within minutes.`));
-  }
-
-  if (sub === 'data') {
-    if (args.length < 2) {
-      return reply(panel('Data', `Usage: ${PREFIX}buy data [plan] [number]\nExample: ${PREFIX}buy data MTN-2GB 08163738389\nSee plans: ${PREFIX}services data`));
-    }
-    const planCode = (args[0] || '').toUpperCase();
-    const number = (args[1] || '').replace(/[^0-9]/g, '');
-    const plan = DATA_PLANS[planCode];
-    if (!plan) return reply(panel('Data', `Unknown plan *${planCode}*. See ${PREFIX}services data.`));
-    if (number.length < 10 || number.length > 14) {
-      return reply(panel('Data', 'Please provide a valid Nigerian phone number.'));
-    }
-    if (user.balance < plan.price) {
-      await reply(INSUFFICIENT_MSG);
-      return reply(panel('Data', `${planCode} costs ${fmtNGN(plan.price)}.\nYour balance: ${fmtNGN(user.balance)}.`));
-    }
-    updateBalance(senderNumber, -plan.price);
-    const orderId = genOrderId('DAT');
-    const newBal = updateBalance(senderNumber, 0);
-    recordOrder({
-      id: orderId, user: senderNumber, type: 'DATA',
-      summary: `${plan.network} ${plan.name} → ${number}`,
-      amount: plan.price, status: 'PROCESSING', meta: { plan: planCode, number },
-    });
-    await notifyOwner(`New data order\nUser: ${pushName} (${senderNumber})\nPlan: ${planCode} (${plan.name})\nNumber: ${number}\nCharged: ${fmtNGN(plan.price)}\nOrder: ${orderId}`);
-    await postToChannel(`📶 *DATA PURCHASE* 📶\n\n${pushName} bought ${plan.name}!\n\nGet yours: ${PREFIX}buy data`);
-    return reply(panel('Data Order',
-      `Plan: *${planCode}* (${plan.name})\nNetwork: *${plan.network}*\nNumber: *${number}*\nCharged: *${fmtNGN(plan.price)}*\nNew balance: *${fmtNGN(newBal)}*\n\nOrder *${orderId}* is processing — usually within minutes.`));
-  }
-
-  return reply(panel('Buy',
-    `Usage:\n${PREFIX}buy airtime [amount] [number]\n${PREFIX}buy data [plan] [number]\n\nSee ${PREFIX}services airtime / ${PREFIX}services data`));
-}
-
-async function cmdBiz(reply, notifyOwner, postToChannel, user, senderNumber, pushName, args) {
-  const code = (args[0] || '').toUpperCase();
-  const svc = BIZ_SERVICES[code];
-  if (!svc) {
-    return reply(panel('Business Service', `Usage: ${PREFIX}biz [code]\nSee codes: ${PREFIX}services biz`));
-  }
-  if (user.balance < svc.price) {
-    await reply(INSUFFICIENT_MSG);
-    return reply(panel('Business Service', `${svc.name} costs ${fmtNGN(svc.price)}.\nYour balance: ${fmtNGN(user.balance)}.`));
-  }
-  updateBalance(senderNumber, -svc.price);
-  const orderId = genOrderId('BIZ');
-  const newBal = updateBalance(senderNumber, 0);
-  recordOrder({
-    id: orderId, user: senderNumber, type: 'BIZ', summary: svc.name, amount: svc.price, status: 'PENDING', meta: { code },
-  });
-  await notifyOwner(`New business order\nUser: ${pushName} (${senderNumber})\nService: ${svc.name}\nCharged: ${fmtNGN(svc.price)}\nOrder: ${orderId}`);
-  await postToChannel(`💼 *BUSINESS ORDER* 💼\n\n${pushName} ordered ${svc.name}!\n\nStart yours: ${PREFIX}biz`);
-  return reply(panel('Order Received',
-    `Service: *${svc.name}*\nCharged: *${fmtNGN(svc.price)}*\nNew balance: *${fmtNGN(newBal)}*\n\nOrder *${orderId}* received. A Harps Tech specialist will contact you within 24 hours to begin work.`));
-}
-
-async function cmdAi(reply, user, senderNumber, pushName, args) {
-  const prompt = args.join(' ').trim();
-  if (!prompt) return reply(panel('AI Chat', `Usage: ${PREFIX}ai [your question]\nCost: ${fmtNGN(AI_COST)} per query`));
-  if (user.balance < AI_COST) return reply(INSUFFICIENT_MSG);
-  updateBalance(senderNumber, -AI_COST);
-  await reply('_Thinking..._');
-  const answer = await askGemini(prompt);
-  const newBal = updateBalance(senderNumber, 0);
-  return reply(panel('Gemini AI',
-    `${answer}\n\n_Charged ${fmtNGN(AI_COST)} • Balance: ${fmtNGN(newBal)}_`));
-}
-
-async function cmdBuyBot(reply, notifyOwner, user, senderNumber, pushName, args) {
-  const type = (args[0] || '').toLowerCase();
-  const bot = BOT_PACKAGES[type];
-  if (!bot) {
-    return reply(panel('Bot Packages', `Usage: ${PREFIX}buybot [basic/standard/pro/premium]\n\nSee ${PREFIX}services bots`));
-  }
-  if (user.balance < bot.price) {
-    await reply(INSUFFICIENT_MSG);
-    return reply(panel('Bot Purchase', `${bot.name} costs ${fmtNGN(bot.price)}.\nYour balance: ${fmtNGN(user.balance)}.`));
-  }
-  updateBalance(senderNumber, -bot.price);
-  const orderId = genOrderId('BOT');
-  const newBal = updateBalance(senderNumber, 0);
-  recordOrder({
-    id: orderId, user: senderNumber, type: 'BOT',
-    summary: `${bot.name} Package`, amount: bot.price, status: 'PENDING', meta: { type },
-  });
-  await notifyOwner(`NEW BOT SALE!\nUser: ${pushName} (${senderNumber})\nPackage: ${bot.name}\nPaid: ${fmtNGN(bot.price)}\nOrder: ${orderId}\n\nSend bot files to customer!`);
-  return reply(panel('Bot Purchase Success',
-    `Package: *${bot.name}*\nPrice: *${fmtNGN(bot.price)}*\nFeatures: *${bot.features}*\nNew balance: *${fmtNGN(newBal)}*\n\nOrder *${orderId}* confirmed!\n\nA Harps Tech agent will contact you within 1 hour to deliver your bot files + setup guide.`));
-}
-
-async function cmdDemo(reply, notifyOwner, user, senderNumber, pushName) {
-  const db = loadDB();
-  if (db.demos[senderNumber]) {
-    return reply(panel('Demo Active', `You already have an active demo!\nExpires: ${new Date(db.demos[senderNumber]).toLocaleString()}\n\nContact ${SUPPORT_HANDLE} to upgrade.`));
-  }
-  const expiry = new Date(Date.now() + 24*60*60*1000);
-  db.demos[senderNumber] = expiry.toISOString();
-  saveDB(db);
-  await notifyOwner(`DEMO REQUEST\nUser: ${pushName} (${senderNumber})\nExpires: ${expiry.toLocaleString()}\n\nSend demo bot to customer!`);
-  return reply(panel('Demo Activated',
-    `✅ 24hr Demo Bot Activated!\n\nExpires: ${expiry.toLocaleString()}\n\nFeatures: Menu, Balance, AI, Basic commands\n\nA demo bot will be sent to you shortly.\n\nUpgrade anytime: ${PREFIX}buybot`));
-}
-
-async function cmdBuyNumber(reply, notifyOwner, postToChannel, user, senderNumber, pushName) {
-  const COST = 4000;
-  if (user.balance < COST) {
-    await reply(INSUFFICIENT_MSG);
-    return reply(panel('USA Number', `USA WhatsApp Number costs *${fmtNGN(COST)}*.\nYour balance: *${fmtNGN(user.balance)}*.`));
-  }
-  if (!process.env.FIVESIM_API_KEY) {
-    return reply(panel('USA Number', 'Number service temporarily unavailable. Contact support.'));
-  }
-
-  updateBalance(senderNumber, -COST);
-  await reply(panel('Buying Number', 'Purchasing USA WhatsApp number from 5SIM...\nPlease wait 10-30 seconds.'));
-
+// ===== SHOPRIME API =====
+async function buyFromShoprime(serviceId, link, quantity) {
+  if (!config.SHOPRIME_KEY) return { success: false, error: "Shoprime API key not set" };
   try {
-    const numData = await get5SimNumber('usa', 'whatsapp');
-    if (!numData ||!numData.phone) {
-      updateBalance(senderNumber, COST);
-      return reply(panel('USA Number', 'Failed to get number from 5SIM. Refunded ₦4,000.\nTry again or contact support.'));
-    }
-
-    const orderId = genOrderId('NUM');
-    const newBal = updateBalance(senderNumber, 0);
-    recordOrder({
-      id: orderId, user: senderNumber, type: 'NUMBER',
-      summary: `USA WhatsApp ${numData.phone}`, amount: COST, status: 'WAITING_SMS', meta: { phone: numData.phone, id: numData.id },
+    const response = await axios.post('https://shopprime.ng/api/order', {
+      key: config.SHOPRIME_KEY,
+      action: 'add',
+      service: serviceId,
+      link: link,
+      quantity: quantity
     });
-
-    await notifyOwner(`NUMBER SOLD\nUser: ${pushName} (${senderNumber})\nNumber: ${numData.phone}\nCharged: ₦4,000\nOrder: ${orderId}`);
-    await postToChannel(`📱 *NUMBER SOLD* 📱\n\n${pushName} bought USA WhatsApp number!\n\nGet yours: ${PREFIX}buynumber ₦4k`);
-
-    await reply(panel('Number Purchased',
-      `Phone: *${numData.phone}*\nCountry: USA\nService: WhatsApp\nCharged: *₦4,000*\nBalance: *${fmtNGN(newBal)}*\n\n` +
-      `Order: *${orderId}*\n\nNow go to WhatsApp → Enter this number → Request SMS code\n\nI'll auto-send you the code when it arrives!`));
-
-    let attempts = 0;
-    const maxAttempts = 30;
-    const checkSMS = async () => {
-      attempts++;
-      const sms = await get5SimSms(numData.id);
-      if (sms && sms.sms && sms.sms.length > 0) {
-        const code = sms.sms[0].code;
-        await reply(panel('SMS CODE RECEIVED',
-          `Phone: *${numData.phone}*\n\n*WhatsApp Code: ${code}*\n\nEnter this code in WhatsApp now!\n\nNote: Number works for WhatsApp only. No guarantee after code delivered.`));
-        return;
-      }
-      if (attempts < maxAttempts) {
-        setTimeout(checkSMS, 10000);
-      } else {
-        await reply(panel('SMS Timeout', `No SMS received after 5 minutes.\n\nContact ${SUPPORT_HANDLE} with Order ID: ${orderId}`));
-      }
-    };
-    setTimeout(checkSMS, 10000);
-
+    if (response.data.order) {
+      return { success: true, orderId: response.data.order };
+    } else {
+      return { success: false, error: response.data.error || "Shoprime failed" };
+    }
   } catch (err) {
-    log.error('5SIM error:', err.message);
-    updateBalance(senderNumber, COST);
-    return reply(panel('USA Number', `Error buying number: ${err.message}\n\nRefunded ₦4,000. Try again later.`));
+    return { success: false, error: err.message };
   }
 }
 
-function cmdChill(reply, user, senderNumber, pushName) {
-  const db = loadDB();
-  db.users[senderNumber].chillMode = true;
-  saveDB(db);
-  const responses = [
-    `Omo *${pushName}* 😂 I don switch to chill mode. No more business talk. Wetin dey sup?`,
-    `Guyyyyy *${pushName}* 😎 Friend mode activated. How you dey?`,
-    `My gee *${pushName}* 💯 No more bot vibes. Just me and you. Wetin happen?`,
-    `Baba *${pushName}* 😂 I don drop customer service. Now na gist. How far?`
-  ];
-  const pick = responses[Math.floor(Math.random() * responses.length)];
-  return reply(pick + `\n\n_Type.nochill to go back business mode_`);
-}
-
-function cmdNoChill(reply, user, senderNumber) {
-  const db = loadDB();
-  db.users[senderNumber].chillMode = false;
-  saveDB(db);
-  return reply(panel('Business Mode ON', `✅ Back to HARPS TECH Bot\n\nSend.menu to see services\nSend.pay to fund wallet\n\n_${BRAND_TAGLINE}_`));
-}
-
-function cmdSavage(reply) {
-  const savage = SAVAGE_REPLIES[Math.floor(Math.random() * SAVAGE_REPLIES.length)];
-  return reply(panel('Savage Mode 😏', savage));
-}
-
-function cmdJokes(reply) {
-  const joke = JOKES[Math.floor(Math.random() * JOKES.length)];
-  return reply(panel('Joke Time 😂', joke));
-}
-
-async function cmdMeme(reply, user, senderNumber, args) {
-  const text = args.join(' ').trim();
-  if (!text) return reply(panel('Meme Generator', `Usage: ${PREFIX}meme [text]\nExample: ${PREFIX}meme When NEPA take light`));
-  if (user.balance < 20) return reply(panel('Meme Generator', 'Cost: ₦20\nYour balance: ' + fmtNGN(user.balance)));
-  updateBalance(senderNumber, -20);
-  const meme = await askGemini(`Create a funny Nigerian meme caption for: "${text}". Make it short, savage, relatable.`);
-  return reply(panel('Meme Generated 😂', `${meme}\n\n_Charged ₦20_`));
-}
-
-function cmdShip(reply, args) {
-  if (args.length < 2) return reply(panel('Ship Calculator', `Usage: ${PREFIX}ship @user1 @user2`));
-  const love = Math.floor(Math.random() * 100) + 1;
-  const u1 = args[0].replace('@', '');
-  const u2 = args[1].replace('@', '');
-  let msg = `${u1} ❤️ ${u2} = ${love}%\n\n`;
-  if (love > 80) msg += 'Soulmates! 💍 Marry now!';
-  else if (love > 60) msg += 'Strong connection! 🔥';
-  else if (love > 40) msg += 'E fit work. Try am 😏';
-  else msg += 'Omo... na friend zone 📦';
-  return reply(panel('Love Calculator', msg));
-}
-
-function cmdTruth(reply, args) {
-  const type = (args[0] || 'truth').toLowerCase();
-  const truths = ["What's your biggest secret?", "Who be your crush?", "You don ever lie for this group?", "Wetin you dey hide for your phone?"];
-  const dares = ["Send voice note sing 'God is Good'", "Change your DP to potato for 1hr", "Send ₦100 to admin 😂", "Call your ex right now 📞"];
-  const pick = type === 'dare'? dares[Math.floor(Math.random() * dares.length)] : truths[Math.floor(Math.random() * truths.length)];
-  return reply(panel(type === 'dare'? 'DARE 🔥' : 'TRUTH 🤔', pick));
-}
-
-async function cmdQuiz(reply, from, sock) {
-  const questions = [
-    { q: "What is Nigeria capital?", a: "abuja" },
-    { q: "2 + 2 x 2 =?", a: "6" },
-    { q: "Who founded HARPS TECH?", a: "okugbe praise" },
-    { q: "Which year Nigeria gain independence?", a: "1960" }
-  ];
-  const q = questions[Math.floor(Math.random() * questions.length)];
-  await reply(panel('QUIZ TIME 🧠', `${q.q}\n\nReply with answer in 30 seconds!\nFirst correct answer wins ₦50!`));
-}
-
-function cmdRPS(reply, args) {
-  const user = (args[0] || '').toLowerCase();
-  const choices = ['rock', 'paper', 'scissors'];
-  if (!choices.includes(user)) return reply(panel('RPS Game', `Usage: ${PREFIX}rps [rock/paper/scissors]`));
-  const bot = choices[Math.floor(Math.random() * 3)];
-  let result = '';
-  if (user === bot) result = 'Draw! 😐';
-  else if ((user === 'rock' && bot === 'scissors') || (user === 'paper' && bot === 'rock') || (user === 'scissors' && bot === 'paper')) result = 'You win! 🎉 +₦20';
-  else result = 'Bot wins! 🤖';
-  return reply(panel('Rock Paper Scissors', `You: ${user}\nBot: ${bot}\n\n${result}`));
-}
-
-function cmdGroupOn(reply, from, senderNumber) {
-  if (senderNumber!== OWNER_NUMBER) return reply('❌ Only owner can turn on bot.');
-  setGroupSettings(from, { enabled: true });
-  return reply(panel('Bot Activated', '✅ Bot is now ON in this group\n\nAll commands active for everybody!\n\nType.off to deactivate me.'));
-}
-
-function cmdGroupOff(reply, from, senderNumber) {
-  if (senderNumber!== OWNER_NUMBER) return reply('❌ Only owner can turn off bot.');
-  setGroupSettings(from, { enabled: false });
-  return reply(panel('Bot Deactivated', '❌ Bot is now OFF in this group\n\nI no go reply anybody again.\n\nOnly owner commands work.\n\nType.on to activate me back.'));
-}
-
-function cmdGroupToggle(reply, from, senderNumber, args) {
-  if (senderNumber!== OWNER_NUMBER) return reply('❌ Only owner can use this.');
-  const mode = (args[0] || '').toLowerCase();
-  if (mode === 'on') {
-    setGroupSettings(from, { enabled: true });
-    return reply(panel('Group Mode', '✅ Bot enabled for everyone'));
-  } else if (mode === 'off') {
-    setGroupSettings(from, { enabled: false });
-    return reply(panel('Group Mode', '❌ Bot disabled for members'));
+async function checkShoprimeStatus(shoprimeOrderId) {
+  if (!config.SHOPRIME_KEY) return { success: false };
+  try {
+    const response = await axios.post('https://shopprime.ng/api/order', {
+      key: config.SHOPRIME_KEY,
+      action: 'status',
+      order: shoprimeOrderId
+    });
+    return { success: true, status: response.data.status, charge: response.data.charge };
+  } catch (err) {
+    return { success: false };
   }
-  return reply(panel('Group Mode', `Usage: ${PREFIX}group [on/off]`));
 }
 
-function cmdGrowth(reply) {
-  const body = Object.entries(GROWTH_TRIALS)
-.map(([key, t]) => `*${t.name}* - ${fmtNGN(t.price)}\nCommand: ${PREFIX}smm ${t.service} [link] ${t.qty}`)
-.join('\n\n') +
-    `\n\n*Example:* ${PREFIX}smm IGF https://instagram.com/yourhandle 10`;
-  return reply(panel('Growth Trials 🔥', body));
+// ===== GEMINI AI + PIDGIN DETECT =====
+const genAI = config.GEMINI_KEY? new GoogleGenerativeAI(config.GEMINI_KEY) : null;
+function isPidgin(text) {
+  const pidginWords = ['dey','nor','abi','wey','na','oga','comot','chop','wan','shey','wetin','how far','e be','no be','una'];
+  return pidginWords.some(w => text.toLowerCase().includes(w));
+}
+async function askGemini(text) {
+  if (!genAI) return "AI offline. Contact owner.";
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const mode = isPidgin(text)? 'pidgin' : 'business';
+    const prompt = mode === 'pidgin'
+    ? `You are HARPS TECH bot. Reply in Nigerian Pidgin English like street guy. Be helpful, funny and friendly. User: ${text}`
+      : `You are HARPS TECH PROv1, a professional Nigerian business WhatsApp bot. Reply professionally, classic, brief and helpful. User: ${text}`;
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  } catch { return "Network error. Please try again."; }
 }
 
-function cmdDaily(reply, user, senderNumber) {
-  const db = loadDB();
-  const today = new Date().toDateString();
-  const lastClaim = db.users[senderNumber].daily? new Date(db.users[senderNumber].daily).toDateString() : null;
-
-  if (lastClaim === today) {
-    return reply(panel('Daily Bonus', '❌ You already claimed today!\n\nCome back tomorrow for ₦100 free.'));
-  }
-
-  updateBalance(senderNumber, 100);
-  db.users[senderNumber].daily = new Date().toISOString();
-  saveDB(db);
-
-  return reply(panel('Daily Bonus Claimed! 🎉', `+₦100 added to your balance!\n\nNew balance: ${fmtNGN(user.balance + 100)}\n\nCome back tomorrow!`));
-}
-
-async function cmdSetVoice(reply, sock, msg, senderNumber) {
-  if (senderNumber!== OWNER_NUMBER) return reply('❌ Only owner can set voice.');
-
-  if (!msg.message?.audioMessage) {
-    return reply(panel('Set Voice Clone', '❌ Send voice note + caption.setvoice\n\nExample: Record 10sec voice saying "Hello I be HARPS TECH" then caption.setvoice'));
-  }
-
-  await reply(panel('Voice Clone', '⏳ Processing your voice... This take 30sec'));
-
+// ===== VN CLONE =====
+async function saveVoiceNote(msg) {
+  const voices = getVoices();
   const buffer = await downloadMediaMessage(msg, 'buffer', {});
-  const db = loadDB();
-  db.voiceClone = buffer.toString('base64');
-  saveDB(db);
-
-  return reply(panel('Voice Clone Success', '✅ Your voice saved!\n\nNow when you use.ai or.voice, bot go reply with YOUR voice.\n\nTest:.voice Hello customers'));
+  const voiceId = Date.now().toString();
+  voices[voiceId] = buffer.toString('base64');
+  voices['latest'] = voiceId;
+  saveVoices(voices);
+  return voiceId;
 }
-
-async function cmdVoiceClone(reply, sock, msg, from, user, senderNumber, args) {
-  const text = args.join(' ').trim();
-  if (!text) return reply(panel('Voice Clone', `Usage: ${PREFIX}voice [text]\nExample: ${PREFIX}voice Hello customers, HARPS TECH here`));
-
-  const db = loadDB();
-  if (!db.voiceClone) {
-    return reply(panel('Voice Clone', '❌ Owner never set voice yet.\n\nOwner should send voice note + caption.setvoice'));
+async function sendVNClone(sock, from, text) {
+  const voices = getVoices();
+  const latestId = voices['latest'];
+  if (latestId && voices[latestId]) {
+    const audioBuffer = Buffer.from(voices[latestId], 'base64');
+    await sock.sendMessage(from, { audio: audioBuffer, mimetype: 'audio/mpeg', ptt: true });
+    await sock.sendMessage(from, { text: `🎙️ ${text}` });
+  } else {
+    await sock.sendMessage(from, { text: `🎙️ VN: ${text}\n\n_Note: Send me a voice note to clone your voice_` });
   }
-
-  if (user.balance < 100) return reply(panel('Voice Clone', 'Cost: ₦100\nYour balance: ' + fmtNGN(user.balance)));
-  updateBalance(senderNumber, -100);
-
-  await reply(panel('Voice Clone', `🎙️ Sending voice note...\n\nText: "${text}"\n\n_Charged ₦100_`));
-
-  const audioBuffer = Buffer.from(db.voiceClone, 'base64');
-  await sock.sendMessage(from, { audio: audioBuffer, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: msg });
 }
 
-async function cmdFund(reply, sock, senderNumber, args) {
-  if (senderNumber!== OWNER_NUMBER) {
-    return reply('Access denied. Only the bot owner can use this command.');
+// ===== UTILS =====
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const SAVAGE_LINES = ["Oga, respect yourself. Your papa no teach you home training?","Mumu, go sit down. You dey mad?","Fool, rest. I go report you to admin.","Bastard, shift one side. Werey.","Thunder fire you. Ode.","Your head correct so? Idiot."];
+
+function calculatePrice(service, qty = 1) {
+  const s = config.SERVICES[service];
+  if (!s) return null;
+  let amount = s.price_per_1k? Math.ceil((qty / 1000) * s.price_per_1k) : s.price || qty;
+  if (qty >= 1000000) amount = Math.ceil(amount * 0.8);
+  else if (qty >= 500000) amount = Math.ceil(amount * 0.85);
+  else if (qty >= 100000) amount = Math.ceil(amount * 0.9);
+  return { amount, serviceName: s.name, cat: s.cat };
+}
+
+function createOrder(userId, service, link, qty, amount, type = 'service') {
+  const orders = getOrders();
+  const orderId = 'HT' + Date.now().toString().slice(-6);
+  orders[orderId] = { userId, service, link, qty, amount, type, status: 'pending', created: Date.now() };
+  saveOrders(orders);
+  return orderId;
+}
+
+function getUserData(userId) {
+  const db = getDB();
+  if (!db[userId]) {
+    db[userId] = { wallet: 0, referrals: [], totalSpent: 0, premium: null, referredBy: null, customPrefix: null, awayMessage: null };
+    saveDB(db);
   }
-  const target = (args[0] || '').replace(/[^0-9]/g, '');
-  const amount = parseInt(args[1], 10);
-  if (!target ||!amount || isNaN(amount)) {
-    return reply(panel('Fund', `Usage: ${PREFIX}fund [number] [amount]\nExample: ${PREFIX}fund 2348163738389 2000`));
-  }
-  const newBal = updateBalance(target, amount);
-  recordOrder({
-    id: genOrderId('FND'), user: target, type: 'FUND',
-    summary: `Wallet credit by admin`, amount, status: 'COMPLETED', meta: {},
-  });
-  await reply(panel('Wallet Funded',
-    `Number: *${target}*\nAmount added: *${fmtNGN(amount)}*\nNew balance: *${fmtNGN(newBal)}*`));
-  try {
-    await sock.sendMessage(`${target}@s.whatsapp.net`, {
-      text: panel('Account Credited',
-        `Your wallet has been funded by Harps Tech.\n\n` +
-        `Amount: *${fmtNGN(amount)}*\nNew balance: *${fmtNGN(newBal)}*\n\n` +
-        `Use ${PREFIX}menu to see what's available.`),
-    });
-  } catch (e) {}
+  return db[userId];
 }
 
-async function cmdBroadcast(reply, sock, senderNumber, args) {
-  if (senderNumber!== OWNER_NUMBER) return reply('Access denied.');
-  const message = args.join(' ').trim();
-  if (!message) return reply(panel('Broadcast', `Usage: ${PREFIX}broadcast [message]`));
-  const db = loadDB();
-  const numbers = Object.keys(db.users);
-  let sent = 0, failed = 0;
-  await reply(panel('Broadcast', `Sending to *${numbers.length}* users...`));
-  for (const n of numbers) {
-    try {
-      await sock.sendMessage(`${n}@s.whatsapp.net`, {
-        text: panel('Announcement', message),
-      });
-      sent++;
-      await new Promise((r) => setTimeout(r, 600));
-    } catch (_) { failed++; }
-  }
-  return reply(panel('Broadcast Complete', `Sent: *${sent}*\nFailed: *${failed}*`));
+function isPremiumActive(userData) {
+  if (!userData.premium) return false;
+  return Date.now() < userData.premium.expires;
 }
 
-function cmdUsers(reply, senderNumber) {
-  if (senderNumber!== OWNER_NUMBER) return reply('Access denied.');
-  const db = loadDB();
-  const list = Object.entries(db.users);
-  if (!list.length) return reply(panel('Users', 'No users yet.'));
-  const total = list.reduce((s, [, u]) => s + (u.balance || 0), 0);
-  const top = [...list].sort((a, b) => (b[1].balance || 0) - (a[1].balance || 0)).slice(0, 20);
-  const body =
-    `Total users: *${list.length}*\nTotal wallet: *${fmtNGN(total)}*\n\n*Top 20 by balance*\n` +
-    top.map(([n, u], i) => `${(i+1).toString().padStart(2,'0')}. ${n.padEnd(14)} ${(u.name || '').slice(0,18).padEnd(18)} ${fmtNGN(u.balance)}`).join('\n');
-  return reply(panel('User Directory', body));
+function getUserPrefix(userId) {
+  return getUserData(userId).customPrefix || config.DEFAULT_PREFIX;
 }
 
-async function cmdSmmBal(reply, senderNumber) {
-  if (senderNumber!== OWNER_NUMBER) return reply('Access denied.');
-  const r = await getSmmBalance();
-  if (!r.ok) return reply(panel('SMM Panel Balance', `Error: ${r.error}`));
-  return reply(panel('SMM Panel Balance',
-    `Balance: *${r.data?.balance?? '—'}*\nCurrency: ${r.data?.currency?? '—'}`));
-}
+// ===== BOT START =====
+const AUTH_FOLDER = './session';
+const logger = pino({ level: 'silent' });
+let pairingCodeRequested = false;
 
-async function cmdSmmList(reply, senderNumber, args) {
-  if (senderNumber!== OWNER_NUMBER) return reply('Access denied.');
-  await reply(panel('SMM Panel', 'Fetching service list from panel...'));
-  const r = await listSmmServices();
-  if (!r.ok ||!Array.isArray(r.data)) {
-    return reply(panel('SMM Panel', `Error: ${r.error || 'Unexpected response.'}`));
-  }
-  const search = (args[0] || '').toLowerCase();
-  const filtered = search? r.data.filter((s) => (s.name || '').toLowerCase().includes(search)) : r.data;
-  const sample = filtered.slice(0, 40);
-  const body =
-    `Total: ${r.data.length} • Showing: ${sample.length}\n\n` +
-    sample.map((s) => `[${s.service}] ${s.name}\n rate ${s.rate} • min ${s.min} • max ${s.max}`).join('\n');
-  return reply(panel('SMM Panel Services', body));
-}
-
-function cmdPanic(reply, senderNumber) {
-  if (senderNumber!== OWNER_NUMBER) return reply('Access denied.');
-  return reply(panel('System Status',
-    `Bot uptime: ${(process.uptime() / 60).toFixed(1)} min\n` +
-    `Node: ${process.version}\n` +
-    `Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1)} MB\n` +
-    `GitHub token: DISABLED (V1)\n` +
-    `SMM key: ${process.env.SMM_KEY? 'OK' : 'MISSING'}\n` +
-    `5SIM key: ${process.env.FIVESIM_API_KEY? 'OK' : 'MISSING'}\n` +
-    `Gemini: ${process.env.AI_INTEGRATIONS_GEMINI_API_KEY? 'OK' : 'MISSING'}`));
-}
-
-// ============================================================================
-// CONNECTION - FIXED FOR BAILEYS 6.7.18
-// ============================================================================
 async function startBot() {
-  if (!fs.existsSync(AUTH_FOLDER)) fs.mkdirSync(AUTH_FOLDER, { recursive: true });
-
-  const credsPath = path.join(AUTH_FOLDER, 'creds.json');
-  if (!fs.existsSync(credsPath)) {
-    fs.writeFileSync(credsPath, JSON.stringify({}), 'utf8');
+  if (!config.PHONE_NUMBER) {
+    console.log('❌ PHONE_NUMBER not set in environment variables');
+    return;
   }
 
-  const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
+  // 🔥 BOSS FIX: AUTO CLEAR SESSION ON EVERY START - SOLVES CODE 405 ON RENDER FREE
+  if (fs.existsSync(AUTH_FOLDER)) {
+    console.log('🧹 Clearing old session to prevent Code 405...');
+    fs.removeSync(AUTH_FOLDER);
+    await delay(2000);
+  }
 
-  log.info(`Starting ${BOT_NAME} (Baileys v6.7.18)`);
+  await fs.ensureDir(AUTH_FOLDER);
+  const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
 
   const sock = makeWASocket({
     logger,
     printQRInTerminal: false,
-    browser: Browsers.ubuntu('Chrome'),
-    auth: {
-      creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, logger),
-    },
-    markOnlineOnConnect: true,
-    generateHighQualityLinkPreview: true,
+    browser: Browsers.macOS('Desktop'),
+    auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
+    markOnlineOnConnect: false,
   });
 
-  if (!sock.authState.creds.registered) {
-    sock.ev.on('connection.update', async (update) => {
-      const { connection } = update;
+  // FIXED CONNECTION + PAIRING CODE
+  sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
+    if (connection === 'connecting' &&!sock.authState.creds.registered &&!pairingCodeRequested) {
+      pairingCodeRequested = true;
+      console.log('\n!!! HARPS TECH PROv1 PAIRING MODE!!!');
+      console.log('Waiting 25 seconds for Baileys to load...\n'); // INCREASED TO 25s FOR RENDER
 
-      if (connection === 'connecting' &&!sock.authState.creds.registered) {
-        console.log('!!! HARPS TECH PAIRING MODE!!!');
-
-        setTimeout(async () => {
-          try {
-            const code = await sock.requestPairingCode(PHONE_NUMBER);
-            console.log('\n═══════════════════════════════════════════');
-            console.log(` 🔥🔥 PAIRING CODE: ${code} 🔥🔥`);
-            console.log('═══════════════════════════════════════════');
-            console.log(' WhatsApp → Linked Devices → Link with phone number\n');
-          } catch (err) {
-            console.log('[ERROR] Failed to get pairing code:', err.message);
-          }
-        }, 5000);
-      }
-    });
-  }
-
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update;
+      setTimeout(async () => {
+        try {
+          const code = await sock.requestPairingCode(config.PHONE_NUMBER);
+          console.log('═══════════════');
+          console.log(` 🔥🔥 8-DIGIT CODE: ${code} 🔥🔥`);
+          console.log('═══════════════');
+          console.log('COPY THIS CODE TO WHATSAPP NOW');
+          console.log('WhatsApp > Settings > Linked Devices > Link with phone number');
+        } catch (err) {
+          console.log('[PAIRING ERROR]:', err.message);
+          pairingCodeRequested = false;
+          setTimeout(() => process.exit(1), 3000); // FORCE RESTART
+        }
+      }, 25000);
+    }
 
     if (connection === 'open') {
-      log.success(`${BOT_NAME} connected as ${sock.user?.id || 'unknown'}`);
+      console.log(`✅ ${config.BOT_NAME} Connected Successfully`);
+      pairingCodeRequested = false;
     } else if (connection === 'close') {
-      const statusCode = lastDisconnect?.error?.output?.statusCode;
-      if (statusCode === DisconnectReason.loggedOut) {
-        fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
+      const code = lastDisconnect?.error?.output?.statusCode;
+      console.log(`[CONNECTION CLOSED]: Code ${code}`);
+
+      if (code === DisconnectReason.loggedOut) {
+        console.log('Logged out. Deleting session...');
+        fs.removeSync(AUTH_FOLDER);
+        pairingCodeRequested = false;
+      } else {
+        console.log('Restarting in 10 seconds...');
+        setTimeout(() => process.exit(1), 10000); // Render will auto-restart
       }
-      setTimeout(() => startBot().catch((e) => log.error('Restart failed:', e?.message || e)), 3000);
-    }
-  });
-
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type!== 'notify') return;
-
-    for (const msg of messages) {
-      try {
-        if (!msg?.message || msg.key.fromMe) continue;
-        const body = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-        const text = body?.trim() || '';
-        const from = msg.key.remoteJid;
-
-        if (isCursed(text)) {
-          await autoSavage(sock, msg, from, msg.pushName);
-          continue;
-        }
-
-        const senderJid = msg.key.participant || msg.key.remoteJid;
-        const senderNumber = senderJid.split('@')[0].split(':')[0];
-        getUser(`${senderJid.split('@')[0]}@s.whatsapp.net`, msg.pushName || senderNumber);
-
-        if (text.startsWith(PREFIX)) {
-          try { await handleCommand(sock, msg, text); }
-          catch (err) { log.error('Command error:', err?.message || err); }
-        }
-      } catch (e) { console.log(e); }
     }
   });
 
   sock.ev.on('creds.update', saveCreds);
-  return sock;
+
+  // AUTO ADVERTISE IN GROUPS
+  setInterval(async () => {
+    const groups = await sock.groupFetchAllParticipating();
+    const ad = config.ADS[Math.floor(Math.random() * config.ADS.length)];
+    for (const groupId of Object.keys(groups)) {
+      try {
+        await sock.sendMessage(groupId, { text: ad });
+        await delay(2000);
+      } catch {}
+    }
+  }, 15 * 60 * 1000);
+
+  // AUTO CHECK SHOPRIME DELIVERY STATUS EVERY 5 MINUTES
+  setInterval(async () => {
+    const orders = getOrders();
+    for (const orderId in orders) {
+      const order = orders[orderId];
+      if (order.status === 'processing' && order.shoprimeOrderId) {
+        const status = await checkShoprimeStatus(order.shoprimeOrderId);
+        if (status.success && status.status === 'Completed') {
+          order.status = 'completed';
+          await sock.sendMessage(order.userId + '@s.whatsapp.net', {
+            text: `✅ *ORDER COMPLETED*\n\nOrder ID: #${orderId}\nService: ${config.SERVICES[order.service].name}\nQuantity: ${order.qty.toLocaleString()}\n\nThank you for patronizing HARPS TECH PROv1!\n\n${config.DISCLAIMER}`
+          });
+          saveOrders(orders);
+        }
+      }
+    }
+  }, 5 * 60 * 1000);
+
+  // ===== MESSAGE HANDLER =====
+  sock.ev.on('messages.upsert', async ({ messages }) => {
+    for (const msg of messages) {
+      if (!msg?.message || msg.key.fromMe) continue;
+
+      const from = msg.key.remoteJid;
+      const sender = msg.key.participant || from;
+      const senderNum = sender.split('@')[0];
+      const isGroup = from.endsWith('@g.us');
+      const body = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || '';
+      const text = body.trim();
+
+      // AUTO FORWARD VIEW ONCE TO OWNER
+      if (msg.message?.viewOnceMessageV2 && senderNum!== config.OWNER_NUMBER) {
+        try {
+          const owner = config.OWNER_NUMBER + '@s.whatsapp.net';
+          const media = await downloadMediaMessage(msg, 'buffer', {});
+          const mtype = Object.keys(msg.message.viewOnceMessageV2.message)[0].replace('Message','');
+          await sock.sendMessage(owner, { [mtype]: media, caption: `👀 *VIEW ONCE FROM @${senderNum}*\n\nThis message was auto-forwarded to you.` });
+          console.log(`[AUTO-VV] Forwarded view-once from ${senderNum} to owner`);
+        } catch(e){ console.log('[AUTO-VV ERROR]:', e); }
+      }
+
+      const userData = getUserData(senderNum);
+      const userPrefix = userData.customPrefix || config.DEFAULT_PREFIX;
+      const isCommand = text.startsWith(userPrefix);
+      const cmd = isCommand? text.toLowerCase().split(' ')[0] : '';
+      const cmdWithoutPrefix = cmd.replace(userPrefix, '');
+      const args = isCommand? text.split(' ').slice(1) : [];
+
+      if (!isCommand && userData.awayMessage &&!isGroup) {
+        await delay(config.REPLY_DELAY);
+        await sock.sendMessage(from, { text: userData.awayMessage }, { quoted: msg });
+        continue;
+      }
+
+      if (msg.message?.audioMessage && senderNum === config.OWNER_NUMBER) {
+        await saveVoiceNote(msg);
+        await delay(config.REPLY_DELAY);
+        await sock.sendMessage(from, { text: `✅ *Voice Cloned!*\n\nYour voice saved. Bot go dey talk like you now when use.chill mode.` }, { quoted: msg });
+        continue;
+      }
+
+      await delay(config.REPLY_DELAY);
+
+      if (cmd === `${userPrefix}vv` && msg.message?.viewOnceMessageV2) {
+        try {
+          const owner = config.OWNER_NUMBER + '@s.whatsapp.net';
+          const media = await downloadMediaMessage(msg, 'buffer', {});
+          const mtype = Object.keys(msg.message.viewOnceMessageV2.message)[0].replace('Message','');
+          await sock.sendMessage(owner, { [mtype]: media, caption: `👀 Manual ViewOnce from @${senderNum}` });
+          await sock.sendMessage(from, { react: { text: '✅', key: msg.key } });
+        } catch { await sock.sendMessage(from, { text: '❌ Failed to view. Message might be already opened.' }, { quoted: msg }); }
+        continue;
+      }
+
+      if ([`${userPrefix}tiktok`,`${userPrefix}ig`,`${userPrefix}instagram`,`${userPrefix}yt`,`${userPrefix}youtube`].includes(cmd)) {
+        await sock.sendMessage(from, { text: `*${config.BOT_NAME}*\n\n⚠️ Video download temporarily disabled.\nContact owner to enable it.` }, { quoted: msg });
+        continue;
+      }
+
+      if (cmd === `${userPrefix}menu`) {
+        await sock.sendMessage(from, { text: `*${config.BOT_NAME} - SERVICES MENU*\n\n━━━━━━━━━━━━
+*📱 SOCIAL MEDIA*
+•.followers tiktok <link> <qty> - 1K = ₦15,000
+  Example:.followers tiktok https://tiktok.com/@user 1000
+•.likes tiktok <link> <qty> - 10 = ₦50
+•.followers instagram <link> <qty> - 10 = ₦350
+•.likes instagram <link> <qty> - 10 = ₦50
+•.views instagram <link> <qty> - 10 = ₦10
+•.subs youtube <link> <qty> - 10 = ₦1,200
+•.followers facebook <link> <qty> - 10 = ₦70
+•.followers twitter <link> <qty> - 10 = ₦2,500
+
+*📊 DATA & AIRTIME*
+•.data mtn 1gb 08012345678 - ₦280
+•.airtime mtn 500 08012345678 - ₦500
+
+*💡 BILLS*
+•.electricity 5000 Ikeja 123456789 - ₦5,000
+•.cable dstv compact 123456789 - ₦10,500
+
+*🎰 BETTING*
+•.betfund bet9ja 1000 123456789 - ₦1,000
+
+*📚 EDUCATION*
+•.exam waec - ₦800
+
+*📞 NUMBERS*
+•.yanky usa - ₦500
+
+*💎 PREMIUM*
+•.premium basic - ₦30,000/30days
+•.premium pro - ₦50,000/30days
+
+*🎮 GAMES*
+•.game trivia - Play & Win Cash!
+
+*💼 OTHER SERVICES*
+•.hostel_hunt oau - ₦500
+•.project_write - ₦15,000
+•.crypto_buy usdt 5000 - ₦5,000
+
+━━━━━━━━━━━━
+*⚠️ IMPORTANT*
+• Account must be PUBLIC for social media
+• ${config.DISCLAIMER}
+• For bulk discount, message owner: wa.me/${config.SUPPORT_NUMBER}
+• Type ${userPrefix}help for full guide` }, { quoted: msg });
+        continue;
+      }
+
+      if (cmd === `${userPrefix}help`) {
+        await sock.sendMessage(from, { text: `*${config.BOT_NAME} - HOW TO USE*\n\n━━━━━━━━━━━━
+*1. SOCIAL MEDIA ORDER FORMAT*
+${userPrefix}followers <platform> <link> <quantity>
+${userPrefix}likes <platform> <link> <quantity>
+${userPrefix}views <platform> <link> <quantity>
+${userPrefix}subs <platform> <link> <quantity>
+
+*EXAMPLES:*
+• ${userPrefix}followers tiktok https://tiktok.com/@user 1000
+• ${userPrefix}likes instagram https://instagram.com/post 10
+• ${userPrefix}subs youtube https://youtube.com/@channel 10
+
+*2. DATA & AIRTIME*
+${userPrefix}data <network> <plan> <phone>
+Example: ${userPrefix}data mtn 1gb 08012345678
+
+*3. BILLS*
+${userPrefix}electricity <amount> <disco> <meter>
+Example: ${userPrefix}electricity 5000 Ikeja 123456789
+
+*4. RECEIPT*
+${userPrefix}receipt <orderId>
+Example: ${userPrefix}receipt HT123456
+
+*5. DISCOUNT*
+For bulk orders or discount, message owner directly:
+wa.me/${config.SUPPORT_NUMBER}
+
+━━━━━━━━━━━━
+${config.DISCLAIMER}
+━━━━━━━━━━━━` }, { quoted: msg });
+        continue;
+      }
+
+      // SOCIAL MEDIA ORDERS
+      if (['followers','likes','views','subs'].includes(cmdWithoutPrefix)) {
+        const platform = args[0];
+        const link = args[1];
+        const qty = parseInt(args[2]);
+        const serviceKey = `${platform}_${cmdWithoutPrefix}`;
+        const service = config.SERVICES[serviceKey];
+
+        if (!platform ||!link ||!qty ||!service) {
+          return sock.sendMessage(from, { text: `*${config.BOT_NAME} - ORDER FORMAT*\n\nUsage: ${cmd} <platform> <link> <quantity>\n\n*EXAMPLE:*\n${config.SERVICES[serviceKey]?.example || '.followers tiktok <link> 1000'}\n\n*⚠️ ACCOUNT MUST BE PUBLIC*\nMin: ${service?.min || 10} | Max: ${service?.max || 'Unlimited'}\n\nPay to: ${config.OPAY_ACCOUNT} - ${config.OPAY_NAME}\n\n${config.DISCLAIMER}` }, { quoted: msg });
+        }
+
+        if (!SHOPRIME_SERVICES[serviceKey]) {
+          return sock.sendMessage(from, { text: '*❌ Service not available yet*\n\nContact owner to add this service.' }, { quoted: msg });
+        }
+
+        const price = calculatePrice(serviceKey, qty);
+        let finalAmount = price.amount;
+        if (isPremiumActive(userData)) {
+          const discount = userData.premium.plan === 'basic'? 0.1 : userData.premium.plan === 'pro'? 0.15 : 0.2;
+          finalAmount = Math.ceil(price.amount * (1 - discount));
+        }
+
+        const shoprimeRes = await buyFromShoprime(SHOPRIME_SERVICES[serviceKey], link, qty);
+        if (!shoprimeRes.success) {
+          return sock.sendMessage(from, { text: `❌ *ORDER FAILED*\n\n${shoprimeRes.error}\n\nContact owner for refund.` }, { quoted: msg });
+        }
+
+        const orderId = createOrder(senderNum, serviceKey, link, qty, finalAmount);
+        const orders = getOrders();
+        orders[orderId].shoprimeOrderId = shoprimeRes.orderId;
+        orders[orderId].status = 'processing';
+        saveOrders(orders);
+
+        await sock.sendMessage(from, { text: `*${config.BOT_NAME} - ORDER CONFIRMATION*\n\n━━━━━━━━━━━━\nOrder ID: #${orderId}\nService: ${price.serviceName}\nQuantity: ${qty.toLocaleString()}\nAmount: ₦${finalAmount.toLocaleString()}${isPremiumActive(userData)? ' (Premium Discount Applied)' : ''}\nCategory: ${price.cat}\nStatus: Processing\n━━━━━━━━━━━━\n\n*PAYMENT DETAILS*\nBank: Opay\nAccount: ${config.OPAY_ACCOUNT}\nName: ${config.OPAY_NAME}\n\n⚠️ *IMPORTANT*\n1. Account must be PUBLIC\n2. Delivery: 0-24hrs after confirmation\n3. Type ${userPrefix}receipt ${orderId} for receipt\n${config.DISCLAIMER}` }, { quoted: msg });
+        continue;
+      }
+
+      // NON-SOCIAL SERVICES
+      const allServiceKeys = Object.keys(config.SERVICES);
+      if (allServiceKeys.includes(cmdWithoutPrefix)) {
+        const service = config.SERVICES[cmdWithoutPrefix];
+        let qty = parseInt(args[0]) || service.min || 1;
+        let link = args[1] || 'N/A';
+
+        const price = calculatePrice(cmdWithoutPrefix, qty);
+        if (!price) return sock.sendMessage(from, { text: '*Service not available or invalid quantity*' }, { quoted: msg });
+
+        let finalAmount = price.amount;
+        if (isPremiumActive(userData)) {
+          const discount = userData.premium.plan === 'basic'? 0.1 : userData.premium.plan === 'pro'? 0.15 : 0.2;
+          finalAmount = Math.ceil(price.amount * (1 - discount));
+        }
+
+        const orderId = createOrder(senderNum, cmdWithoutPrefix, link, qty, finalAmount);
+        await sock.sendMessage(from, { text: `*${config.BOT_NAME} - ORDER CONFIRMATION*\n\n━━━━━━━━━━━━\nOrder ID: #${orderId}\nService: ${price.serviceName}\nQuantity: ${qty.toLocaleString()}\nAmount: ₦${finalAmount.toLocaleString()}${isPremiumActive(userData)? ' (Premium Discount Applied)' : ''}\nCategory: ${price.cat}\n━━━━━━━━━━━━\n\n*PAYMENT DETAILS*\nBank: Opay\nAccount: ${config.OPAY_ACCOUNT}\nName: ${config.OPAY_NAME}\n\n⚠️ *IMPORTANT*\n1. Send payment proof to owner\n2. Type ${userPrefix}receipt ${orderId} after payment\n3. Delivery: 0-24hrs after confirmation\n${config.DISCLAIMER}` }, { quoted: msg });
+        continue;
+      }
+
+      if (cmd === `${userPrefix}receipt`) {
+        const orderId = args[0];
+        if (!orderId) return sock.sendMessage(from, { text: `*Usage:* ${userPrefix}receipt <orderId>\n\nExample: ${userPrefix}receipt HT123456` }, { quoted: msg });
+        const orders = getOrders();
+        const order = orders[orderId];
+        if (!order || order.userId!== senderNum) return sock.sendMessage(from, { text: '*Receipt Not Found*\n\nCheck your Order ID or contact support.' }, { quoted: msg });
+        const service = config.SERVICES[order.service];
+        await sock.sendMessage(from, { text: `*${config.BOT_NAME} - OFFICIAL RECEIPT*\n\n━━━━━━━━━━━━\nReceipt #: ${orderId}\nDate: ${new Date(order.created).toLocaleString()}\nCustomer: @${senderNum}\n━━━━━━━━━━━━\n\n*ITEM DETAILS*\nService: ${service.name}\nQuantity: ${order.qty.toLocaleString()}\nLink: ${order.link}\n\n*PAYMENT*\nAmount Paid: ₦${order.amount.toLocaleString()}\nStatus: ${order.status.toUpperCase()}\nMethod: Bank Transfer\n━━━━━━━━━━━━\n*HARPS TECH PROv1*\n${config.OPAY_ACCOUNT} - ${config.OPAY_NAME}\nThank you for your patronage!\n\n${config.DISCLAIMER}\n━━━━━━━━━━━━` }, { quoted: msg });
+        continue;
+      }
+
+      //.invest
+      if (cmd === `${userPrefix}invest`) {
+        await sock.sendMessage(from, { text: `*${config.BOT_NAME} - INVESTMENT PLANS*\n\n━━━━━━━━━━━━\n*📈 PLANS AVAILABLE*\n\n1. *Starter* - ₦10,000\nReturn: ₦15,000 in 30 days\nROI: 50%\n\n2. *Growth* - ₦50,000\nReturn: ₦80,000 in 30 days\nROI: 60%\n\n3. *Premium* - ₦100,000\nReturn: ₦170,000 in 30 days\nROI: 70%\n\n━━━━━━━━━━━━\n*HOW TO INVEST*\n1. Pay to: ${config.OPAY_ACCOUNT} - ${config.OPAY_NAME}\n2. Send proof to owner\n3. Type: ${userPrefix}invest confirm <amount>\n\n*Note:* Investment is managed by HARPS TECH. T&C Apply.\n${config.DISCLAIMER}\n━━━━━━━━━━━━` }, { quoted: msg });
+        continue;
+      }
+
+      //.refer
+      if (cmd === `${userPrefix}refer`) {
+        const refCode = senderNum;
+        const refCount = userData.referrals.length;
+        const earnings = refCount * 500;
+        await sock.sendMessage(from, { text: `*${config.BOT_NAME} - REFERRAL PROGRAM*\n\n━━━━━━━━━━━━\nYour Code: ${refCode}\nTotal Referrals: ${refCount}\nEarnings: ₦${earnings.toLocaleString()}\n━━━━━━━━━━━━\n\n*HOW IT WORKS*\n1. Share your code: ${refCode}\n2. Friend uses: ${userPrefix}start ${refCode}\n3. Friend makes first purchase\n4. You earn ₦500\n*SHARE LINK*\nwa.me/${config.PHONE_NUMBER}?text=${userPrefix}start%20${refCode}\n\nWithdraw: ${userPrefix}withdraw\n━━━━━━━━━━━━` }, { quoted: msg });
+        continue;
+      }
+
+      //.start - WITH REFERRAL
+      if (cmd === `${userPrefix}start` && args[0]) {
+        const refCode = args[0];
+        if (refCode!== senderNum &&!userData.referredBy) {
+          userData.referredBy = refCode;
+          const db = getDB();
+          if (db[refCode]) {
+            db[refCode].referrals.push(senderNum);
+            saveDB(db);
+          }
+          saveDB({...getDB(), [senderNum]: userData});
+          await sock.sendMessage(from, { text: `✅ *Referral Applied!*\n\nYou were referred by ${refCode}. You get ₦200 bonus on first order!` }, { quoted: msg });
+        } else {
+          await sock.sendMessage(from, { text: `*Welcome to ${config.BOT_NAME}!*\n\nType ${userPrefix}menu to see services.\n\n${config.DISCLAIMER}` }, { quoted: msg });
+        }
+        continue;
+      }
+
+      //.hostel_hunt
+      if (cmd === `${userPrefix}hostel_hunt`) {
+        const school = args[0];
+        if (!school) return sock.sendMessage(from, { text: `*${config.BOT_NAME} - HOSTEL HUNT*\n\nUsage: ${userPrefix}hostel_hunt <school>\n\nExample: ${userPrefix}hostel_hunt oau\nExample: ${userPrefix}hostel_hunt unilag\nExample: ${userPrefix}hostel_hunt ui\nPrice: ₦500\nWe connect you to verified agents.\n\n${config.DISCLAIMER}` }, { quoted: msg });
+        const orderId = createOrder(senderNum, 'hostel_hunt', school, 1, 500);
+        await sock.sendMessage(from, { text: `*${config.BOT_NAME} - HOSTEL HUNT ORDER*\n\n━━━━━━━━━━━━\nOrder ID: #${orderId}\nSchool: ${school.toUpperCase()}\nService: Hostel Agent Connection\nAmount: ₦500\n━━━━━━━━━━━━\n\nPay to: ${config.OPAY_ACCOUNT} - ${config.OPAY_NAME}\n\nAfter payment, our agent will contact you within 24hrs with available hostels.\n\n${config.DISCLAIMER}` }, { quoted: msg });
+        continue;
+      }
+
+      //.custom_prefix
+      if (cmd === `${userPrefix}custom_prefix`) {
+        const newPrefix = args[0];
+        if (!newPrefix || newPrefix.length> 2) return sock.sendMessage(from, { text: `*Usage:* ${userPrefix}custom_prefix <symbol>\n\nExample: ${userPrefix}custom_prefix!\nExample: ${userPrefix}custom_prefix /\n\nMax 2 characters. Current: ${userPrefix}` }, { quoted: msg });
+        userData.customPrefix = newPrefix;
+        saveDB({...getDB(), [senderNum]: userData});
+        await sock.sendMessage(from, { text: `✅ *Prefix Changed!*\n\nYour new prefix: ${newPrefix}\n\nExample: ${newPrefix}menu\nExample: ${newPrefix}balance` }, { quoted: msg });
+        continue;
+      }
+
+      //.auto_reply
+      if (cmd === `${userPrefix}auto_reply`) {
+        const message = args.join(' ');
+        if (!message) return sock.sendMessage(from, { text: `*Usage:* ${userPrefix}auto_reply <message>\n\nExample: ${userPrefix}auto_reply I dey busy now. I go reply you later.\n\nTo disable: ${userPrefix}auto_reply off` }, { quoted: msg });
+        if (message.toLowerCase() === 'off') {
+          userData.awayMessage = null;
+          await sock.sendMessage(from, { text: '✅ *Away Message Disabled*' }, { quoted: msg });
+        } else {
+          userData.awayMessage = message;
+          await sock.sendMessage(from, { text: `✅ *Away Message Set!*\n\nMessage: "${message}"\n\nWhen customers message you, bot go reply this.` }, { quoted: msg });
+        }
+        saveDB({...getDB(), [senderNum]: userData});
+        continue;
+      }
+
+      //.support
+      if (cmd === `${userPrefix}support`) {
+        await sock.sendMessage(from, { text: `*${config.BOT_NAME} - SUPPORT*\n\n━━━━━━━━━━━━\n*CONTACT OWNER*\nWhatsApp: wa.me/${config.SUPPORT_NUMBER}\n\n*BUSINESS HOURS*\nMon-Sat: 8AM - 10PM\nSunday: 2PM - 8PM\n*COMMON ISSUES*\n1. Order delay: Send Order ID\n2. Payment issue: Send proof\n3. Technical: Describe problem\nWe reply within 1 hour.\n\n${config.DISCLAIMER}\n━━━━━━━━━━━━` }, { quoted: msg });
+        continue;
+      }
+
+      //.premium
+      if (cmd === `${userPrefix}premium`) {
+        const planKey = args[0] || 'basic';
+        const plan = config.PREMIUM[planKey];
+        if (!plan) return sock.sendMessage(from, { text: `*${config.BOT_NAME} - PREMIUM PLANS*\n\n*Available Plans:*\n1. Basic - ₦30,000/30days\n2. Pro - ₦50,000/30days\n3. Biz - ₦100,000/30days\n*HOW TO BUY:* Pay to ${config.OPAY_ACCOUNT} - ${config.OPAY_NAME}\nThen send proof to owner.\n\n${config.DISCLAIMER}` }, { quoted: msg });
+        const orderId = createOrder(senderNum, 'premium', planKey, 1, plan.price, 'premium');
+        await sock.sendMessage(from, { text: `*${config.BOT_NAME} - PREMIUM ORDER*\n\n━━━━━━━━━━━━\nPlan: ${plan.name}\nPrice: ₦${plan.price.toLocaleString()}\nDuration: ${plan.duration_days} days\nBenefits:\n${plan.benefits.map(b => `• ${b}`).join('\n')}\n━━━━━━━━━━━━\n\nPay to: ${config.OPAY_ACCOUNT} - ${config.OPAY_NAME}\n\nAfter payment, send proof to owner for activation.\n\n${config.DISCLAIMER}` }, { quoted: msg });
+        continue;
+      }
+
+      //.chill - VN MODE
+      if (cmd === `${userPrefix}chill`) {
+        const chatText = args.join(' ');
+        if (!chatText) return sock.sendMessage(from, { text: `*Usage:* ${userPrefix}chill <your message>\n\nExample: ${userPrefix}chill How are you today?\n\nBot go reply you with voice note like owner.` }, { quoted: msg });
+        const aiResponse = await askGemini(chatText);
+        await sendVNClone(sock, from, aiResponse);
+        continue;
+      }
+
+      // GAME COMMANDS
+      if (cmd === `${userPrefix}game`) {
+        const gameType = args[0]?.toLowerCase();
+        const game = config.GAMES[gameType];
+        if (!game) return sock.sendMessage(from, { text: `*${config.BOT_NAME} - GAMES*\n\n*Available Games:*\ntrivia, slot, blackjack, dice, rps, tictactoe, hangman, math, flag, lyrics, emoji, wordchain, fastest, coin, wyr, nhie, riddle, anagram, guessnum, tod\n*Example:* ${userPrefix}game trivia\n*Win Cash:* 1st place gets ₦500 cash prize!` }, { quoted: msg });
+        await sock.sendMessage(from, { text: `🎮 *${game.name} STARTED!*\n\nGame coming soon! Cash prize: ₦500\nContact owner to play now.` }, { quoted: msg });
+        continue;
+      }
+
+      // AI MODE
+      if (!isCommand &&!isGroup) {
+        const aiResponse = await askGemini(text);
+        await sock.sendMessage(from, { text: aiResponse }, { quoted: msg });
+        continue;
+      }
+
+      // GROUP SAVAGE MODE
+      if (isGroup && isCommand) {
+        const randomSavage = SAVAGE_LINES[Math.floor(Math.random() * SAVAGE_LINES.length)];
+        await sock.sendMessage(from, { text: randomSavage }, { quoted: msg });
+        continue;
+      }
+    }
+  });
+
+  // ANTI-LINK + WELCOME
+  sock.ev.on('group-participants.update', async ({ id, participants, action }) => {
+    if (action === 'add') {
+      for (const user of participants) {
+        const welcome = `*WELCOME TO HARPS TECH PROv1!*\n\n@${user.split('@')[0]}, welcome to our official group!\n\n*WHAT WE DO:*\n• Data & Airtime\n• Social Media Services\n• Bills Payment\n• Betting Funding\n• Education PINs\n• And 20+ more services\n*TYPE:*.menu to see all services\n*SUPPORT:* wa.me/${config.SUPPORT_NUMBER}\n\n${config.DISCLAIMER}`;
+        await sock.sendMessage(id, { text: welcome, mentions: [user] });
+      }
+    }
+  });
+
+  sock.ev.on('messages.upsert', async ({ messages }) => {
+    for (const msg of messages) {
+      const from = msg.key.remoteJid;
+      const sender = msg.key.participant || from;
+      const senderNum = sender.split('@')[0];
+      const isGroup = from.endsWith('@g.us');
+      const body = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+      const urlRegex = /(https?:\/\/|www\.)[^\s]+/i;
+
+      if (isGroup && urlRegex.test(body) && senderNum!== config.OWNER_NUMBER) {
+        await sock.sendMessage(from, { delete: msg.key });
+        await sock.sendMessage(from, { text: `🚫 *LINK DETECTED*\n\n@${senderNum}, links not allowed in this group. Contact admin.` }, { mentions: [sender] });
+      }
+    }
+  });
 }
 
-process.on('uncaughtException', (err) => log.error('Uncaught exception:', err?.message || err));
-process.on('unhandledRejection', (err) => log.error('Unhandled rejection:', err?.message || err));
-
-console.log('=== BOT FILE LOADED ===');
-console.log('Starting HARP TECH bot...');
-startBot().catch((err) => {
-  console.error('=== FATAL STARTUP ERROR ===');
-  console.error(err?.stack || err);
-  setTimeout(() => {
-    console.log('Retrying startBot...');
-    startBot().catch((e) => console.error('Retry failed:', e?.stack || e));
-  }, 5000);
-});
+startBot().catch(console.error);
