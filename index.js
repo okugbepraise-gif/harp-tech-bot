@@ -181,7 +181,7 @@ async function askGemini(text) {
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
     const mode = isPidgin(text)? 'pidgin' : 'business';
     const prompt = mode === 'pidgin'
-   ? `You are HARPS TECH bot. Reply in Nigerian Pidgin English like street guy. Be helpful, funny and friendly. User: ${text}`
+  ? `You are HARPS TECH bot. Reply in Nigerian Pidgin English like street guy. Be helpful, funny and friendly. User: ${text}`
       : `You are HARPS TECH PROv1, a professional Nigerian business WhatsApp bot. Reply professionally, classic, brief and helpful. User: ${text}`;
     const result = await model.generateContent(prompt);
     return result.response.text();
@@ -274,7 +274,7 @@ async function startBot() {
   const sock = makeWASocket({
     logger,
     printQRInTerminal: false,
-    browser: Browsers.macOS('Chrome'), // CHROME IS MORE STABLE THAN DESKTOP ON RENDER
+    browser: Browsers.ubuntu('Chrome'), // 🔥 CHANGED FROM MACOS TO UBUNTU - FIXES CODE 405 ON RENDER
     auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
     markOnlineOnConnect: false,
   });
@@ -309,10 +309,13 @@ async function startBot() {
       const code = lastDisconnect?.error?.output?.statusCode;
       console.log(`[CONNECTION CLOSED]: Code ${code}`);
 
-      if (code === DisconnectReason.loggedOut || code === 405) {
-        console.log('Force clearing session...');
+      // 🔥 BOSS NEW: 2MIN COOLDOWN TO PREVENT 24H BAN
+      if (code === DisconnectReason.loggedOut || code === 405 || code === 401) {
+        console.log('🚫 WhatsApp rate limit detected. 2min cooldown to prevent 24h ban...');
         fs.removeSync(AUTH_FOLDER);
         pairingCodeRequested = false;
+        await delay(120000); // 2 MIN COOLDOWN
+        process.exit(1);
       }
 
       console.log('Restarting in 15 seconds...');
